@@ -180,3 +180,13 @@ funcionalidades pedidas" (linha de mira + trincheira).
 mira + trincheira que já te passei]" sem substituir. Como essas
 funcionalidades já existiam, nada foi refeito, para não desfazer a
 trincheira alta e os buracos redondos pedidos depois.
+
+## 10. Conferência do registro — 28/09/2026 20:21
+
+**Prompt:** "guardou todos os prompts?"
+
+**Feito:** conferido que o log cobre os 9 prompts anteriores (1–8 retroativos,
+9 no momento). Explicado que, pela regra, são resumos de 1–3 linhas e não o
+texto integral; oferecido salvar os textos completos à parte.
+
+**Arquivos:** `docs/ai-log.md`.
