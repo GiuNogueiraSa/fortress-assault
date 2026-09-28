@@ -20,3 +20,21 @@ OBRIGATÓRIOS que devem ser respeitados em qualquer sugestão futura:
   (isso vira evidência de documentação depois).
 - Prazo é curto (~10 dias). Priorize sempre a solução mais simples que
   funcione sobre a mais elegante.
+
+## Registro de prompts e respostas
+
+A cada prompt que eu (Claude Code) receber deste projeto a partir de
+agora, registre em um arquivo separado chamado docs/ai-log.md (crie a
+pasta docs/ se não existir) uma entrada com:
+
+- Data/hora
+- Resumo curto do prompt recebido (1-3 linhas, não precisa copiar
+  o prompt inteiro)
+- Resumo do que foi feito em resposta (o que foi criado/alterado,
+  decisões técnicas tomadas)
+- Arquivos modificados
+- Problemas encontrados nesse prompt e como foram resolvidos, se houver
+
+Esse arquivo serve para documentação do processo de uso de IA exigida
+no trabalho, então mantenha as entradas objetivas e cronológicas
+(mais recente no final do arquivo).
