@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Protótipo — Etapa 4: Física do Projétil</title>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --panel: rgba(20, 22, 28, 0.85);
+    --accent: #7fd88f;
+    --accent-warn: #e0a24c;
+    --text: #e8e8ea;
+    --muted: #8b8f9a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.5);
+    background: #05060a;
+    outline: none;
+    cursor: crosshair;
+  }
+  #hud {
+    position: absolute;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    left: 16px;
+    right: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #hud-bottom {
+    position: absolute;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    backdrop-filter: blur(6px);
+  }
+  .panel h1 {
+    font-size: 13px;
+    margin: 0 0 4px 0;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .panel p { margin: 0; color: var(--muted); }
+  .status-ok { color: var(--accent); }
+  .status-bad { color: var(--accent-warn); }
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 16px; height: 16px;
+    margin: -8px 0 0 -8px;
+    pointer-events: none;
+    display: none;
+  }
+  #crosshair::before, #crosshair::after {
+    content: "";
+    position: absolute;
+    background: rgba(255,255,255,0.85);
+  }
+  #crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+  #crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
+  #fallback {
+    max-width: 440px;
+    text-align: center;
+    padding: 28px;
+    background: var(--panel);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    display: none;
+  }
+  #fallback h2 { color: var(--accent-warn); margin-top: 0; }
+  #fallback code {
+    background: rgba(255,255,255,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="canvas" width="900" height="560" tabindex="0"></canvas>
+    <div id="crosshair"></div>
+    <div id="fallback">
+      <h2>WebGPU não disponível</h2>
+      <p>Este navegador não suporta WebGPU, ou o suporte está desativado.</p>
+      <p>Use um Chrome/Edge atualizado. Se necessário, ative em <code>chrome://flags/#enable-unsafe-webgpu</code>.</p>
+    </div>
+  </div>
+  <div id="hud">
+    <div class="panel">
+      <h1>Etapa 4 — Física do Projétil</h1>
+      <p id="status">Inicializando…</p>
+    </div>
+    <div class="panel">
+      <h1>Controles</h1>
+      <p>WASD: andar (relativo à direção do canhão)</p>
+      <p>Mouse: mirar (lados / cima / baixo) · Espaço: atirar</p>
+      <p>Acerte o cubo vermelho (alvo)</p>
+    </div>
+  </div>
+  <div id="hud-bottom">
+    <div class="panel" id="lock-hint">Clique no canvas para travar o mouse e mirar</div>
+  </div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
