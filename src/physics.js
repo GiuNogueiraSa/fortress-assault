@@ -3,31 +3,29 @@ import { transformPoint, transformDirection } from "./math.js";
 import { BARREL_LENGTH, tankModelMatrices } from "./tank.js";
 
 export const MOVE_SPEED = 2.4;
+export const TURN_SPEED = 1.5; // rad/s (~86°/s) ao segurar A/D
 export const GRAVITY = -9.8;
 export const SHOT_SPEED = 11;
 
-// Vetores "frente" e "direita" no plano XZ a partir do yaw da mira.
-// Iguais aos eixos -Z e +X locais do chassi após mat4.rotationY(aimYaw), para a
-// câmera e o WASD seguirem exatamente para onde o cano aponta.
-export function aimBasis(aimYaw) {
-  return {
-    forward: [-Math.sin(aimYaw), 0, -Math.cos(aimYaw)],
-    right: [Math.cos(aimYaw), 0, -Math.sin(aimYaw)],
-  };
+// Vetor "frente" do corpo no plano XZ: igual ao eixo -Z local do chassi após
+// mat4.rotationY(yaw), para câmera, movimento e cano apontarem para o mesmo lado.
+export function bodyForward(yaw) {
+  return [-Math.sin(yaw), 0, -Math.cos(yaw)];
 }
 
-// WASD relativo à direção do canhão, com velocidade normalizada na diagonal.
-export function moveTank(state, keys, forward, right, dt) {
-  let mx = 0, mz = 0;
-  if (keys.has("w")) { mx += forward[0]; mz += forward[2]; }
-  if (keys.has("s")) { mx -= forward[0]; mz -= forward[2]; }
-  if (keys.has("d")) { mx += right[0]; mz += right[2]; }
-  if (keys.has("a")) { mx -= right[0]; mz -= right[2]; }
-  const mlen = Math.hypot(mx, mz);
-  if (mlen > 0.0001) {
-    state.x += (mx/mlen) * MOVE_SPEED * dt;
-    state.z += (mz/mlen) * MOVE_SPEED * dt;
-  }
+// Controle clássico de tanque: A/D giram o corpo no próprio eixo, W/S andam
+// para frente/ré na direção do corpo. Os dois são aplicados no mesmo quadro,
+// independentes, então W+D (etc.) vira uma curva sem lógica especial.
+export function moveTank(state, keys, dt) {
+  let turn = 0, drive = 0;
+  if (keys.has("a")) turn += 1;   // yaw positivo gira para a esquerda
+  if (keys.has("d")) turn -= 1;
+  if (keys.has("w")) drive += 1;
+  if (keys.has("s")) drive -= 1;
+  state.yaw += turn * TURN_SPEED * dt;
+  const forward = bodyForward(state.yaw);
+  state.x += forward[0] * drive * MOVE_SPEED * dt;
+  state.z += forward[2] * drive * MOVE_SPEED * dt;
 }
 
 // Posição e velocidade iniciais do projétil, saindo da boca do cano.

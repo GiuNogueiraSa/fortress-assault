@@ -38,7 +38,7 @@ export function buildMuzzleFlash() {
 export function tankModelMatrices(state) {
   const chassis = mat4.multiply(
     mat4.translation(state.x, 0, state.z),
-    mat4.rotationY(state.aimYaw)
+    mat4.rotationY(state.yaw)
   );
   const turret = mat4.multiply(
     chassis,

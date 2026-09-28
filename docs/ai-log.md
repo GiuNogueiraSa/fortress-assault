@@ -190,3 +190,40 @@ trincheira alta e os buracos redondos pedidos depois.
 texto integral; oferecido salvar os textos completos à parte.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 11. Controle clássico de tanque — 28/09/2026 20:23
+
+**Prompt:** trocar o esquema de controle. W/S andam na direção do corpo, A/D
+giram o corpo no próprio eixo, W/S + A/D fazem curva naturalmente, e o mouse
+passa a controlar só a elevação do cano. Torre, cano e câmera seguem o corpo.
+
+**Feito:**
+- `state.aimYaw` virou `state.yaw`, a direção única do corpo, usada por
+  chassi, torre, cano, câmera, disparo e linha de mira (os dois últimos já
+  derivam de `tankModelMatrices`, então não precisaram de mudança própria).
+- `moveTank`: A/D somam ±`TURN_SPEED` (1.5 rad/s) ao yaw, e W/S andam
+  ±`MOVE_SPEED` ao longo de `bodyForward(yaw)`. Os dois são aplicados no
+  mesmo quadro, de forma independente, então W+D vira curva (raio =
+  2.4 / 1.5 = 1.6).
+- `aimBasis` (frente + direita da mira) virou `bodyForward`. Sem strafe,
+  o vetor "direita" deixou de ser usado.
+- Mouse: removido o controle horizontal (`MOUSE_YAW_SENS`). O pointer lock
+  foi mantido só para ler `movementY`: é o mais simples e preserva o fluxo
+  clique/Esc que já funcionava.
+- Textos do HUD, da dica de pointer lock e do README atualizados.
+
+**Arquivos:** `src/physics.js`, `src/tank.js`, `src/main.js`, `index.html`,
+`README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- Unitário (`moveTank`): W/S andam 2.4 m/s; A/D giram sem sair do lugar;
+  W+S não andam; a curva W+D mantém raio 1.58–1.62 (esperado 1.6), virando
+  para a direita; o tiro sai alinhado ao corpo em qualquer yaw.
+- Jogo, com relógio virtual: ré + tiro abriu buraco na trincheira; depois de
+  girar com D, a câmera segue o corpo; mouse horizontal com pointer lock não
+  muda nenhum pixel; mouse vertical muda a elevação e a linha de mira. Sem
+  erros no console.
+
+**Problemas:** uma execução do teste automatizado caiu porque o navegador
+de teste fechou no meio; na repetição, tudo passou. Nenhum problema no
+código do jogo.

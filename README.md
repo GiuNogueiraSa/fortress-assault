@@ -25,9 +25,11 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 
 | Ação | Tecla |
 |---|---|
+| Andar para frente / ré (na direção do corpo) | W / S |
+| Girar o tanque no próprio eixo | A / D |
+| Curva (girar enquanto anda) | W ou S + A ou D |
 | Travar o mouse para mirar | Clique no canvas |
-| Andar (relativo à direção do canhão) | W A S D |
-| Mirar (girar / elevar o canhão) | Mouse |
+| Elevação do cano | Mouse (cima / baixo) |
 | Atirar | Espaço |
 | Liberar o mouse | Esc |
 

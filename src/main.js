@@ -9,7 +9,7 @@ import {
   buildChassis, buildTurretDome, buildBarrel, buildMuzzleFlash,
   BARREL_LENGTH, tankModelMatrices,
 } from "./tank.js";
-import { aimBasis, moveTank, spawnProjectile, updateProjectiles, predictTrajectory } from "./physics.js";
+import { bodyForward, moveTank, spawnProjectile, updateProjectiles, predictTrajectory } from "./physics.js";
 import { createAimLine } from "./aimLine.js";
 import {
   explosionShaderCode, explosionUniformData, EXPLOSION_UNIFORM_BYTES, EXPLOSION_DURATION,
@@ -30,7 +30,7 @@ document.addEventListener("pointerlockchange", () => {
   crosshairEl.style.display = locked ? "block" : "none";
   lockHintEl.textContent = locked
     ? "Mira ativa — Esc para liberar o mouse"
-    : "Clique no canvas para travar o mouse e mirar";
+    : "Clique no canvas para travar o mouse e ajustar a elevação do cano";
 });
 
 function setStatus(msg, ok = true) {
@@ -195,10 +195,9 @@ async function main() {
   // ---------- Estado ----------
   const state = {
     x: 0, z: 1.5,
-    aimYaw: 0,                 // direção horizontal (mouse) — também usada pelo chassi e pela torre
+    yaw: 0,                    // direção do corpo (A/D) — torre, cano e câmera seguem junto
     aimPitch: Math.PI / 3,     // elevação do cano (60° inicial, ajustável pelo mouse)
   };
-  const MOUSE_YAW_SENS = 0.0022;
   const MOUSE_PITCH_SENS = 0.0022;
   const PITCH_MIN = 0.05;
   const PITCH_MAX = 1.35; // ~77 graus
@@ -207,7 +206,6 @@ async function main() {
 
   document.addEventListener("mousemove", (e) => {
     if (document.pointerLockElement !== canvas) return;
-    state.aimYaw -= e.movementX * MOUSE_YAW_SENS;
     state.aimPitch += e.movementY * MOUSE_PITCH_SENS;
     state.aimPitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, state.aimPitch));
   });
@@ -268,8 +266,8 @@ async function main() {
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
 
-    const { forward, right } = aimBasis(state.aimYaw);
-    moveTank(state, keys, forward, right, dt);
+    moveTank(state, keys, dt);
+    const forward = bodyForward(state.yaw);
 
     if (flashTimer > 0) flashTimer -= dt;
 
