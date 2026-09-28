@@ -6,6 +6,9 @@ import {
   BARREL_LENGTH, tankModelMatrices,
 } from "./tank.js";
 import { aimBasis, moveTank, spawnProjectile, updateProjectiles } from "./physics.js";
+import {
+  explosionShaderCode, explosionUniformData, EXPLOSION_UNIFORM_BYTES, EXPLOSION_DURATION,
+} from "./explosion.js";
 
 const statusEl = document.getElementById("status");
 const fallbackEl = document.getElementById("fallback");
@@ -125,6 +128,26 @@ async function main() {
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
   });
 
+  // Pipeline da explosão (shader externo, ver src/explosion.js): quad billboard
+  // gerado no vertex shader, sem vertex buffer; pixels fora do efeito são descartados.
+  const explosionModule = device.createShaderModule({ code: explosionShaderCode });
+  const explosionPipeline = device.createRenderPipeline({
+    layout: "auto",
+    vertex: { module: explosionModule, entryPoint: "vs_main" },
+    fragment: { module: explosionModule, entryPoint: "fs_main", targets: [{ format }] },
+    primitive: { topology: "triangle-list", cullMode: "none" },
+    depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+  });
+  const explosionUBO = device.createBuffer({
+    size: EXPLOSION_UNIFORM_BYTES,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const explosionBG = device.createBindGroup({
+    layout: explosionPipeline.getBindGroupLayout(0),
+    entries: [{ binding: 0, resource: { buffer: explosionUBO } }],
+  });
+  const EXPLOSION_QUAD_SIZE = 3.0; // lado do quad em unidades de mundo
+
   const depthTexture = device.createTexture({
     size: [canvas.width, canvas.height],
     format: "depth24plus",
@@ -171,6 +194,7 @@ async function main() {
   let lastShotAt = -999;
   const projectiles = []; // {pos:[x,y,z], vel:[vx,vy,vz], slot:index}
   let nextSlot = 0;
+  let explosion = null; // { pos:[x,y,z], age: segundos desde o impacto } — uma por vez
 
   function fire() {
     const now = performance.now();
@@ -186,8 +210,9 @@ async function main() {
   }
 
   const projectileEvents = {
-    onHitTarget() {
-      setStatus("Acertou o alvo! (explosão de verdade entra numa próxima etapa)", true);
+    onHitTarget(p) {
+      setStatus("Acertou o alvo!", true);
+      explosion = { pos: [...p.pos], age: 0 };
       randomizeTarget();
     },
     onHitGround() {
@@ -208,6 +233,11 @@ async function main() {
     if (flashTimer > 0) flashTimer -= dt;
 
     updateProjectiles(projectiles, dt, targetState, projectileEvents);
+
+    if (explosion) {
+      explosion.age += dt;
+      if (explosion.age > EXPLOSION_DURATION) explosion = null;
+    }
 
     // Câmera em terceira pessoa, acompanhando a direção da mira
     const eye = [
@@ -234,6 +264,10 @@ async function main() {
     for (const p of projectiles) {
       const drawable = projectilePool[p.slot];
       device.queue.writeBuffer(drawable.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...p.pos)));
+    }
+    if (explosion) {
+      device.queue.writeBuffer(explosionUBO, 0,
+        explosionUniformData(viewProj, view, explosion.pos, explosion.age, EXPLOSION_QUAD_SIZE));
     }
 
     const encoder = device.createCommandEncoder();
@@ -272,6 +306,13 @@ async function main() {
       pass.setBindGroup(0, projectileBGs[p.slot]);
       pass.setVertexBuffer(0, projectilePool[p.slot].vertexBuffer);
       pass.draw(projectilePool[p.slot].count);
+    }
+
+    // Explosão por último (troca de pipeline)
+    if (explosion) {
+      pass.setPipeline(explosionPipeline);
+      pass.setBindGroup(0, explosionBG);
+      pass.draw(6);
     }
 
     pass.end();

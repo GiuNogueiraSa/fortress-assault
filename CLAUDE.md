@@ -7,8 +7,8 @@ OBRIGATÓRIOS que devem ser respeitados em qualquer sugestão futura:
   inegociável — sem isso a nota zera).
 - Deve incluir pelo menos um efeito de shader (partículas ou iluminação)
   obtido de uma fonte EXTERNA da internet, adaptado e com a fonte
-  documentada. Ainda não foi implementado — está planejado como etapa
-  futura (explosão ao acertar o alvo).
+  documentada. IMPLEMENTADO: explosão ao acertar o alvo, em
+  src/explosion.js (fonte e licença no cabeçalho do arquivo).
 - NÃO PODE ter como processamento principal da GPU: redes neurais,
   blockchain, ou qualquer uso não-gráfico. Nunca sugerir isso.
 - A aplicação deve estar funcional e estável no dia da apresentação
