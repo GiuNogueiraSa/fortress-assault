@@ -76,7 +76,7 @@ export function buildProjectile() {
 export const TRENCH_SEGMENTS = 9;
 export const TRENCH_SPACING = 0.8;
 export const TRENCH_Z = -6;
-export const TRENCH_SEGMENT_HALF = [TRENCH_SPACING / 2, 0.35, 0.3];
+export const TRENCH_SEGMENT_HALF = [TRENCH_SPACING / 2, 1.75, 0.3]; // 3.5 de altura (5x os 0.7 originais)
 const TRENCH_VISUAL_WIDTH = 0.74;
 const TRENCH_COLORS = [[0.55, 0.47, 0.32], [0.46, 0.39, 0.26]]; // sacos de areia, alternando o tom
 
