@@ -39,27 +39,56 @@ export function spawnProjectile(state) {
   };
 }
 
-// Física dos projéteis: gravidade real, sem curva "desenhada" — ela emerge da simulação.
-// target = { pos, half } é lido a cada projétil (onHitTarget pode reposicionar o alvo).
-export function updateProjectiles(projectiles, dt, target, { onHitTarget, onHitGround }) {
+// Um passo de integração: gravidade real, sem curva "desenhada" — ela emerge da simulação.
+function stepProjectile(p, dt) {
+  p.vel[1] += GRAVITY * dt;
+  p.pos[0] += p.vel[0] * dt;
+  p.pos[1] += p.vel[1] * dt;
+  p.pos[2] += p.vel[2] * dt;
+}
+
+// Primeiro alvo vivo (AABB { pos, half, alive }) que contém o ponto, ou null.
+function hitTarget(pos, targets) {
+  for (const t of targets) {
+    if (!t.alive) continue;
+    const dx = pos[0]-t.pos[0], dy = pos[1]-t.pos[1], dz = pos[2]-t.pos[2];
+    if (Math.abs(dx) < t.half[0] && Math.abs(dy) < t.half[1] && Math.abs(dz) < t.half[2]) return t;
+  }
+  return null;
+}
+const hitGround = pos => pos[1] <= 0.08;
+const outOfBounds = pos => Math.abs(pos[0]) > 20 || Math.abs(pos[2]) > 20; // saiu da área jogável
+
+// targets = lista de segmentos da trincheira; onHitTarget(p, alvo) decide o que fazer com o alvo.
+export function updateProjectiles(projectiles, dt, targets, { onHitTarget, onHitGround }) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
-    p.vel[1] += GRAVITY * dt;
-    p.pos[0] += p.vel[0] * dt;
-    p.pos[1] += p.vel[1] * dt;
-    p.pos[2] += p.vel[2] * dt;
+    stepProjectile(p, dt);
 
-    const dx = p.pos[0]-target.pos[0], dy = p.pos[1]-target.pos[1], dz = p.pos[2]-target.pos[2];
-    const hitTarget = Math.abs(dx) < target.half[0] && Math.abs(dy) < target.half[1] && Math.abs(dz) < target.half[2];
-
-    if (hitTarget) {
-      onHitTarget(p);
+    const target = hitTarget(p.pos, targets);
+    if (target) {
+      onHitTarget(p, target);
       projectiles.splice(i, 1);
-    } else if (p.pos[1] <= 0.08) {
+    } else if (hitGround(p.pos)) {
       onHitGround(p);
       projectiles.splice(i, 1);
-    } else if (Math.abs(p.pos[0]) > 20 || Math.abs(p.pos[2]) > 20) {
-      projectiles.splice(i, 1); // saiu da área jogável
+    } else if (outOfBounds(p.pos)) {
+      projectiles.splice(i, 1);
     }
   }
+}
+
+// Linha de mira: simula um tiro "fantasma" com a MESMA velocidade inicial, gravidade
+// e testes de parada do tiro real, sem disparar. Devolve os pontos [x,y,z, x,y,z, ...].
+export const PREDICT_STEP = 1 / 60;
+export const PREDICT_MAX_POINTS = 240; // 4 s de voo, bem mais que o tiro mais longo
+export function predictTrajectory(state, targets) {
+  const p = spawnProjectile(state);
+  const points = [...p.pos];
+  for (let i = 1; i < PREDICT_MAX_POINTS; i++) {
+    stepProjectile(p, PREDICT_STEP);
+    points.push(p.pos[0], p.pos[1], p.pos[2]);
+    if (hitTarget(p.pos, targets) || hitGround(p.pos) || outOfBounds(p.pos)) break;
+  }
+  return points;
 }

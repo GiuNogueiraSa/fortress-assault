@@ -1,11 +1,14 @@
 // ---------- Ponto de entrada: WebGPU, entrada do usuário e loop do jogo ----------
 import { mat4 } from "./math.js";
-import { buildGround, buildProjectile, buildTarget, TARGET_HALF } from "./geometry.js";
+import {
+  buildGround, buildProjectile, buildTrenchSegment, trenchSegmentPositions, TRENCH_SEGMENT_HALF,
+} from "./geometry.js";
 import {
   buildChassis, buildTurretDome, buildBarrel, buildMuzzleFlash,
   BARREL_LENGTH, tankModelMatrices,
 } from "./tank.js";
-import { aimBasis, moveTank, spawnProjectile, updateProjectiles } from "./physics.js";
+import { aimBasis, moveTank, spawnProjectile, updateProjectiles, predictTrajectory } from "./physics.js";
+import { createAimLine } from "./aimLine.js";
 import {
   explosionShaderCode, explosionUniformData, EXPLOSION_UNIFORM_BYTES, EXPLOSION_DURATION,
 } from "./explosion.js";
@@ -86,7 +89,10 @@ async function main() {
   const turret = makeDrawable(buildTurretDome());
   const barrel = makeDrawable(buildBarrel());
   const muzzleFlash = makeDrawable(buildMuzzleFlash());
-  const target = makeDrawable(buildTarget());
+  // Trincheira: cada segmento é um objeto independente (posição, AABB e "vivo" próprios)
+  const trenchSegments = trenchSegmentPositions().map((pos, i) => ({
+    pos, half: TRENCH_SEGMENT_HALF, alive: true, drawable: makeDrawable(buildTrenchSegment(i)),
+  }));
   const MAX_PROJECTILES = 8;
   const projectileVerts = buildProjectile();
   const projectilePool = Array.from({ length: MAX_PROJECTILES }, () => makeDrawable(projectileVerts));
@@ -107,7 +113,7 @@ async function main() {
   const turretBG = makeBindGroup(turret);
   const barrelBG = makeBindGroup(barrel);
   const flashBG = makeBindGroup(muzzleFlash);
-  const targetBG = makeBindGroup(target);
+  for (const seg of trenchSegments) seg.bindGroup = makeBindGroup(seg.drawable);
   const projectileBGs = projectilePool.map(makeBindGroup);
 
   const pipeline = device.createRenderPipeline({
@@ -138,15 +144,25 @@ async function main() {
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
   });
-  const explosionUBO = device.createBuffer({
-    size: EXPLOSION_UNIFORM_BYTES,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  const explosionBG = device.createBindGroup({
-    layout: explosionPipeline.getBindGroupLayout(0),
-    entries: [{ binding: 0, resource: { buffer: explosionUBO } }],
+  // Várias explosões ao mesmo tempo (tiros seguidos em segmentos diferentes):
+  // cada "slot" tem seu próprio uniform buffer, como o pool de projéteis.
+  const MAX_EXPLOSIONS = 4;
+  const explosionSlots = Array.from({ length: MAX_EXPLOSIONS }, () => {
+    const ubo = device.createBuffer({
+      size: EXPLOSION_UNIFORM_BYTES,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    const bindGroup = device.createBindGroup({
+      layout: explosionPipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: ubo } }],
+    });
+    return { ubo, bindGroup };
   });
   const EXPLOSION_QUAD_SIZE = 3.0; // lado do quad em unidades de mundo
+
+  const aimLine = createAimLine(device, format);
+  const AIM_LINE_ACTIVE = [1, 1, 1, 0.55];  // mouse travado (mirando)
+  const AIM_LINE_IDLE = [1, 1, 1, 0.15];    // mouse solto: bem discreta
 
   const depthTexture = device.createTexture({
     size: [canvas.width, canvas.height],
@@ -169,11 +185,6 @@ async function main() {
   const PITCH_MAX = 1.35; // ~77 graus
   const CAM_DISTANCE = 6.5;
   const CAM_HEIGHT = 3.2;
-  const targetState = { pos: [0, 0.5, -6], half: TARGET_HALF };
-
-  function randomizeTarget() {
-    targetState.pos = [(Math.random()*8) - 4, 0.5, -(4 + Math.random()*8)];
-  }
 
   document.addEventListener("mousemove", (e) => {
     if (document.pointerLockElement !== canvas) return;
@@ -194,7 +205,14 @@ async function main() {
   let lastShotAt = -999;
   const projectiles = []; // {pos:[x,y,z], vel:[vx,vy,vz], slot:index}
   let nextSlot = 0;
-  let explosion = null; // { pos:[x,y,z], age: segundos desde o impacto } — uma por vez
+  const explosions = []; // {pos:[x,y,z], age: segundos desde o impacto, slot:index}
+  let nextExplosionSlot = 0;
+
+  function spawnExplosion(pos) {
+    if (explosions.length >= MAX_EXPLOSIONS) explosions.shift();
+    explosions.push({ pos: [...pos], age: 0, slot: nextExplosionSlot });
+    nextExplosionSlot = (nextExplosionSlot + 1) % MAX_EXPLOSIONS;
+  }
 
   function fire() {
     const now = performance.now();
@@ -210,10 +228,13 @@ async function main() {
   }
 
   const projectileEvents = {
-    onHitTarget(p) {
-      setStatus("Acertou o alvo!", true);
-      explosion = { pos: [...p.pos], age: 0 };
-      randomizeTarget();
+    onHitTarget(p, segment) {
+      segment.alive = false; // só este segmento some; os vizinhos continuam de pé
+      spawnExplosion(p.pos);
+      const alive = trenchSegments.filter(s => s.alive).length;
+      setStatus(alive > 0
+        ? `Segmento destruído! Restam ${alive}/${trenchSegments.length}`
+        : "Trincheira destruída! Uma nova aparece em instantes", true);
     },
     onHitGround() {
       setStatus("Impacto no chão", true);
@@ -232,11 +253,17 @@ async function main() {
 
     if (flashTimer > 0) flashTimer -= dt;
 
-    updateProjectiles(projectiles, dt, targetState, projectileEvents);
+    updateProjectiles(projectiles, dt, trenchSegments, projectileEvents);
 
-    if (explosion) {
-      explosion.age += dt;
-      if (explosion.age > EXPLOSION_DURATION) explosion = null;
+    for (let i = explosions.length - 1; i >= 0; i--) {
+      explosions[i].age += dt;
+      if (explosions[i].age > EXPLOSION_DURATION) explosions.splice(i, 1);
+    }
+
+    // Trincheira toda destruída: reconstrói depois que a última explosão acabar
+    if (explosions.length === 0 && trenchSegments.every(s => !s.alive)) {
+      for (const seg of trenchSegments) seg.alive = true;
+      setStatus("Nova trincheira inimiga!", true);
     }
 
     // Câmera em terceira pessoa, acompanhando a direção da mira
@@ -260,15 +287,21 @@ async function main() {
       device.queue.writeBuffer(muzzleFlash.uniformBuffer, 0, mat4.multiply(viewProj, modelFlash));
     }
 
-    device.queue.writeBuffer(target.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...targetState.pos)));
+    for (const seg of trenchSegments) {
+      if (seg.alive) device.queue.writeBuffer(seg.drawable.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...seg.pos)));
+    }
     for (const p of projectiles) {
       const drawable = projectilePool[p.slot];
       device.queue.writeBuffer(drawable.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...p.pos)));
     }
-    if (explosion) {
-      device.queue.writeBuffer(explosionUBO, 0,
-        explosionUniformData(viewProj, view, explosion.pos, explosion.age, EXPLOSION_QUAD_SIZE));
+    for (const e of explosions) {
+      device.queue.writeBuffer(explosionSlots[e.slot].ubo, 0,
+        explosionUniformData(viewProj, view, e.pos, e.age, EXPLOSION_QUAD_SIZE));
     }
+
+    // Trajetória prevista a partir da mira atual (recalculada todo quadro)
+    const aiming = document.pointerLockElement === canvas;
+    aimLine.update(viewProj, predictTrajectory(state, trenchSegments), aiming ? AIM_LINE_ACTIVE : AIM_LINE_IDLE);
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -298,9 +331,12 @@ async function main() {
       pass.draw(muzzleFlash.count);
     }
 
-    pass.setBindGroup(0, targetBG);
-    pass.setVertexBuffer(0, target.vertexBuffer);
-    pass.draw(target.count);
+    for (const seg of trenchSegments) {
+      if (!seg.alive) continue;
+      pass.setBindGroup(0, seg.bindGroup);
+      pass.setVertexBuffer(0, seg.drawable.vertexBuffer);
+      pass.draw(seg.drawable.count);
+    }
 
     for (const p of projectiles) {
       pass.setBindGroup(0, projectileBGs[p.slot]);
@@ -308,11 +344,14 @@ async function main() {
       pass.draw(projectilePool[p.slot].count);
     }
 
-    // Explosão por último (troca de pipeline)
-    if (explosion) {
+    // Depois dos opacos (trocam de pipeline): linha de mira e explosões
+    aimLine.draw(pass);
+    if (explosions.length > 0) {
       pass.setPipeline(explosionPipeline);
-      pass.setBindGroup(0, explosionBG);
-      pass.draw(6);
+      for (const e of explosions) {
+        pass.setBindGroup(0, explosionSlots[e.slot].bindGroup);
+        pass.draw(6);
+      }
     }
 
     pass.end();

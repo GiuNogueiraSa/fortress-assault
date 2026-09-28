@@ -68,7 +68,24 @@ export function buildGround() {
 export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));
 }
-export const TARGET_HALF = [0.5, 0.5, 0.5];
-export function buildTarget() {
-  return new Float32Array(buildBox(TARGET_HALF[0]*2, TARGET_HALF[1]*2, TARGET_HALF[2]*2, [0,0,0], [0.78, 0.16, 0.14]));
+
+// Trincheira inimiga: fileira de segmentos independentes ao longo de X, no
+// lugar onde ficava o alvo (z = -6). A caixa desenhada é um pouco mais estreita
+// que o espaçamento (fresta visual entre blocos), mas a colisão (AABB) cobre o
+// espaçamento todo, para o projétil não "vazar" pela fresta.
+export const TRENCH_SEGMENTS = 9;
+export const TRENCH_SPACING = 0.8;
+export const TRENCH_Z = -6;
+export const TRENCH_SEGMENT_HALF = [TRENCH_SPACING / 2, 0.35, 0.3];
+const TRENCH_VISUAL_WIDTH = 0.74;
+const TRENCH_COLORS = [[0.55, 0.47, 0.32], [0.46, 0.39, 0.26]]; // sacos de areia, alternando o tom
+
+export function trenchSegmentPositions() {
+  const first = -(TRENCH_SEGMENTS - 1) / 2 * TRENCH_SPACING;
+  return Array.from({ length: TRENCH_SEGMENTS }, (_, i) =>
+    [first + i * TRENCH_SPACING, TRENCH_SEGMENT_HALF[1], TRENCH_Z]);
+}
+export function buildTrenchSegment(index) {
+  const h = TRENCH_SEGMENT_HALF;
+  return new Float32Array(buildBox(TRENCH_VISUAL_WIDTH, h[1]*2, h[2]*2, [0,0,0], TRENCH_COLORS[index % 2]));
 }

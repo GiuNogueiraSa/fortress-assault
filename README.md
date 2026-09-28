@@ -2,8 +2,10 @@
 
 Jogo simples de tanque em 3D renderizado com **WebGPU** (trabalho de
 Computação Gráfica). O jogador controla um tanque em terceira pessoa, mira o
-canhão com o mouse e atira projéteis com física de gravidade real para acertar
-um cubo vermelho (o alvo), que explode e muda de lugar a cada acerto.
+canhão com o mouse — com uma linha prevendo a trajetória do tiro — e atira
+projéteis com física de gravidade real para destruir uma trincheira inimiga,
+bloco por bloco. Cada bloco atingido explode e some; destruída a trincheira
+inteira, uma nova aparece.
 
 ## Como rodar localmente
 
@@ -35,9 +37,10 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 index.html        página, HUD e estilos
 src/main.js       inicialização WebGPU, pipeline, entrada e loop do jogo
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)
-src/geometry.js   primitivas (caixa, cilindro), chão, alvo e projétil
+src/geometry.js   primitivas (caixa, cilindro), chão, trincheira e projétil
 src/tank.js       geometria do tanque e hierarquia chassi → torre → cano
-src/physics.js    movimento do tanque, disparo e física dos projéteis
+src/physics.js    movimento do tanque, disparo, física e previsão da trajetória
+src/aimLine.js    linha de mira (pipeline line-strip)
 src/explosion.js  shader de explosão (WGSL) + layout do uniform buffer
 ```
 
