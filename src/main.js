@@ -1,8 +1,10 @@
 // ---------- Ponto de entrada: WebGPU, entrada do usuário e loop do jogo ----------
 import { mat4 } from "./math.js";
+import { buildGround, buildProjectile } from "./geometry.js";
 import {
-  buildGround, buildProjectile, buildTrenchSegment, trenchSegmentPositions, TRENCH_SEGMENT_HALF,
-} from "./geometry.js";
+  createTrench, resetTrench, trenchRemaining, trenchHitTest, carveHole, holeCenter, buildTrenchMesh,
+  TRENCH_MAX_FLOATS, TRENCH_REBUILD_BELOW,
+} from "./trench.js";
 import {
   buildChassis, buildTurretDome, buildBarrel, buildMuzzleFlash,
   BARREL_LENGTH, tankModelMatrices,
@@ -89,10 +91,27 @@ async function main() {
   const turret = makeDrawable(buildTurretDome());
   const barrel = makeDrawable(buildBarrel());
   const muzzleFlash = makeDrawable(buildMuzzleFlash());
-  // Trincheira: cada segmento é um objeto independente (posição, AABB e "vivo" próprios)
-  const trenchSegments = trenchSegmentPositions().map((pos, i) => ({
-    pos, half: TRENCH_SEGMENT_HALF, alive: true, drawable: makeDrawable(buildTrenchSegment(i)),
-  }));
+  // Trincheira: grade de células (src/trench.js). A malha muda a cada buraco,
+  // então o vertex buffer é alocado uma vez no tamanho do pior caso e reescrito.
+  const trench = createTrench();
+  const isTrenchSolid = pos => trenchHitTest(trench, pos);
+  const trenchDrawable = {
+    vertexBuffer: device.createBuffer({
+      size: TRENCH_MAX_FLOATS * 4,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    }),
+    uniformBuffer: device.createBuffer({
+      size: 4 * 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    }),
+    count: 0,
+  };
+  function uploadTrenchMesh() {
+    const data = buildTrenchMesh(trench);
+    device.queue.writeBuffer(trenchDrawable.vertexBuffer, 0, data);
+    trenchDrawable.count = data.length / 6;
+  }
+  uploadTrenchMesh();
   const MAX_PROJECTILES = 8;
   const projectileVerts = buildProjectile();
   const projectilePool = Array.from({ length: MAX_PROJECTILES }, () => makeDrawable(projectileVerts));
@@ -113,7 +132,7 @@ async function main() {
   const turretBG = makeBindGroup(turret);
   const barrelBG = makeBindGroup(barrel);
   const flashBG = makeBindGroup(muzzleFlash);
-  for (const seg of trenchSegments) seg.bindGroup = makeBindGroup(seg.drawable);
+  const trenchBG = makeBindGroup(trenchDrawable);
   const projectileBGs = projectilePool.map(makeBindGroup);
 
   const pipeline = device.createRenderPipeline({
@@ -144,7 +163,7 @@ async function main() {
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
   });
-  // Várias explosões ao mesmo tempo (tiros seguidos em segmentos diferentes):
+  // Várias explosões ao mesmo tempo (tiros seguidos em pontos diferentes):
   // cada "slot" tem seu próprio uniform buffer, como o pool de projéteis.
   const MAX_EXPLOSIONS = 4;
   const explosionSlots = Array.from({ length: MAX_EXPLOSIONS }, () => {
@@ -228,12 +247,13 @@ async function main() {
   }
 
   const projectileEvents = {
-    onHitTarget(p, segment) {
-      segment.alive = false; // só este segmento some; os vizinhos continuam de pé
+    onHitTarget(p) {
+      carveHole(trench, holeCenter(p.pos, p.vel)); // buraco redondo onde o tiro atravessa; o resto fica de pé
+      uploadTrenchMesh();
       spawnExplosion(p.pos);
-      const alive = trenchSegments.filter(s => s.alive).length;
-      setStatus(alive > 0
-        ? `Segmento destruído! Restam ${alive}/${trenchSegments.length}`
+      const destroyed = Math.round((1 - trenchRemaining(trench)) * 100);
+      setStatus(trenchRemaining(trench) >= TRENCH_REBUILD_BELOW
+        ? `Impacto na trincheira! ${destroyed}% destruída`
         : "Trincheira destruída! Uma nova aparece em instantes", true);
     },
     onHitGround() {
@@ -253,16 +273,17 @@ async function main() {
 
     if (flashTimer > 0) flashTimer -= dt;
 
-    updateProjectiles(projectiles, dt, trenchSegments, projectileEvents);
+    updateProjectiles(projectiles, dt, isTrenchSolid, projectileEvents);
 
     for (let i = explosions.length - 1; i >= 0; i--) {
       explosions[i].age += dt;
       if (explosions[i].age > EXPLOSION_DURATION) explosions.splice(i, 1);
     }
 
-    // Trincheira toda destruída: reconstrói depois que a última explosão acabar
-    if (explosions.length === 0 && trenchSegments.every(s => !s.alive)) {
-      for (const seg of trenchSegments) seg.alive = true;
+    // Trincheira quase toda destruída: reconstrói depois que a última explosão acabar
+    if (explosions.length === 0 && trenchRemaining(trench) < TRENCH_REBUILD_BELOW) {
+      resetTrench(trench);
+      uploadTrenchMesh();
       setStatus("Nova trincheira inimiga!", true);
     }
 
@@ -287,9 +308,7 @@ async function main() {
       device.queue.writeBuffer(muzzleFlash.uniformBuffer, 0, mat4.multiply(viewProj, modelFlash));
     }
 
-    for (const seg of trenchSegments) {
-      if (seg.alive) device.queue.writeBuffer(seg.drawable.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...seg.pos)));
-    }
+    device.queue.writeBuffer(trenchDrawable.uniformBuffer, 0, viewProj); // malha já em coordenadas de mundo
     for (const p of projectiles) {
       const drawable = projectilePool[p.slot];
       device.queue.writeBuffer(drawable.uniformBuffer, 0, mat4.multiply(viewProj, mat4.translation(...p.pos)));
@@ -301,7 +320,7 @@ async function main() {
 
     // Trajetória prevista a partir da mira atual (recalculada todo quadro)
     const aiming = document.pointerLockElement === canvas;
-    aimLine.update(viewProj, predictTrajectory(state, trenchSegments), aiming ? AIM_LINE_ACTIVE : AIM_LINE_IDLE);
+    aimLine.update(viewProj, predictTrajectory(state, isTrenchSolid), aiming ? AIM_LINE_ACTIVE : AIM_LINE_IDLE);
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -331,12 +350,9 @@ async function main() {
       pass.draw(muzzleFlash.count);
     }
 
-    for (const seg of trenchSegments) {
-      if (!seg.alive) continue;
-      pass.setBindGroup(0, seg.bindGroup);
-      pass.setVertexBuffer(0, seg.drawable.vertexBuffer);
-      pass.draw(seg.drawable.count);
-    }
+    pass.setBindGroup(0, trenchBG);
+    pass.setVertexBuffer(0, trenchDrawable.vertexBuffer);
+    pass.draw(trenchDrawable.count);
 
     for (const p of projectiles) {
       pass.setBindGroup(0, projectileBGs[p.slot]);

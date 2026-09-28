@@ -49,27 +49,18 @@ function stepProjectile(p, dt) {
   p.pos[2] += p.vel[2] * dt;
 }
 
-// Primeiro alvo vivo (AABB { pos, half, alive }) que contém o ponto, ou null.
-function hitTarget(pos, targets) {
-  for (const t of targets) {
-    if (!t.alive) continue;
-    const dx = pos[0]-t.pos[0], dy = pos[1]-t.pos[1], dz = pos[2]-t.pos[2];
-    if (Math.abs(dx) < t.half[0] && Math.abs(dy) < t.half[1] && Math.abs(dz) < t.half[2]) return t;
-  }
-  return null;
-}
 const hitGround = pos => pos[1] <= 0.08;
 const outOfBounds = pos => Math.abs(pos[0]) > 20 || Math.abs(pos[2]) > 20; // saiu da área jogável
 
-// targets = lista de segmentos da trincheira; onHitTarget(p, alvo) decide o que fazer com o alvo.
-export function updateProjectiles(projectiles, dt, targets, { onHitTarget, onHitGround }) {
+// isSolid(pos) diz se o ponto está dentro do alvo (ex.: uma célula de pé da trincheira);
+// onHitTarget(p) decide o que fazer com o impacto.
+export function updateProjectiles(projectiles, dt, isSolid, { onHitTarget, onHitGround }) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     stepProjectile(p, dt);
 
-    const target = hitTarget(p.pos, targets);
-    if (target) {
-      onHitTarget(p, target);
+    if (isSolid(p.pos)) {
+      onHitTarget(p);
       projectiles.splice(i, 1);
     } else if (hitGround(p.pos)) {
       onHitGround(p);
@@ -84,13 +75,13 @@ export function updateProjectiles(projectiles, dt, targets, { onHitTarget, onHit
 // e testes de parada do tiro real, sem disparar. Devolve os pontos [x,y,z, x,y,z, ...].
 export const PREDICT_STEP = 1 / 60;
 export const PREDICT_MAX_POINTS = 240; // 4 s de voo, bem mais que o tiro mais longo
-export function predictTrajectory(state, targets) {
+export function predictTrajectory(state, isSolid) {
   const p = spawnProjectile(state);
   const points = [...p.pos];
   for (let i = 1; i < PREDICT_MAX_POINTS; i++) {
     stepProjectile(p, PREDICT_STEP);
     points.push(p.pos[0], p.pos[1], p.pos[2]);
-    if (hitTarget(p.pos, targets) || hitGround(p.pos) || outOfBounds(p.pos)) break;
+    if (isSolid(p.pos) || hitGround(p.pos) || outOfBounds(p.pos)) break;
   }
   return points;
 }

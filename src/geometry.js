@@ -18,13 +18,14 @@ function pushTri(verts, a, b, c, normal, color, center) {
     verts.push(p[0]+center[0], p[1]+center[1], p[2]+center[2], col[0], col[1], col[2]);
   }
 }
-function pushQuad(verts, p0, p1, p2, p3, normal, color, center) {
+export function pushQuad(verts, p0, p1, p2, p3, normal, color, center) {
   pushTri(verts, p0, p1, p2, normal, color, center);
   pushTri(verts, p0, p2, p3, normal, color, center);
 }
-export function buildBox(sizeX, sizeY, sizeZ, center, color) {
-  const hx = sizeX/2, hy = sizeY/2, hz = sizeZ/2;
-  const faces = [
+// As 6 faces de uma caixa centrada na origem: cantos (c) e normal (n).
+// Ordem: +Z, -Z, +X, -X, +Y, -Y.
+export function boxFaces(hx, hy, hz) {
+  return [
     { c: [[-hx,-hy, hz],[ hx,-hy, hz],[ hx, hy, hz],[-hx, hy, hz]], n: [0,0,1] },
     { c: [[ hx,-hy,-hz],[-hx,-hy,-hz],[-hx, hy,-hz],[ hx, hy,-hz]], n: [0,0,-1] },
     { c: [[ hx,-hy, hz],[ hx,-hy,-hz],[ hx, hy,-hz],[ hx, hy, hz]], n: [1,0,0] },
@@ -32,8 +33,10 @@ export function buildBox(sizeX, sizeY, sizeZ, center, color) {
     { c: [[-hx, hy, hz],[ hx, hy, hz],[ hx, hy,-hz],[-hx, hy,-hz]], n: [0,1,0] },
     { c: [[-hx,-hy,-hz],[ hx,-hy,-hz],[ hx,-hy, hz],[-hx,-hy, hz]], n: [0,-1,0] },
   ];
+}
+export function buildBox(sizeX, sizeY, sizeZ, center, color) {
   const verts = [];
-  for (const f of faces) pushQuad(verts, f.c[0], f.c[1], f.c[2], f.c[3], f.n, color, center);
+  for (const f of boxFaces(sizeX/2, sizeY/2, sizeZ/2)) pushQuad(verts, f.c[0], f.c[1], f.c[2], f.c[3], f.n, color, center);
   return verts;
 }
 export function buildCylinderX(radius, length, center, color, segments) {
@@ -69,23 +72,3 @@ export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));
 }
 
-// Trincheira inimiga: fileira de segmentos independentes ao longo de X, no
-// lugar onde ficava o alvo (z = -6). A caixa desenhada é um pouco mais estreita
-// que o espaçamento (fresta visual entre blocos), mas a colisão (AABB) cobre o
-// espaçamento todo, para o projétil não "vazar" pela fresta.
-export const TRENCH_SEGMENTS = 9;
-export const TRENCH_SPACING = 0.8;
-export const TRENCH_Z = -6;
-export const TRENCH_SEGMENT_HALF = [TRENCH_SPACING / 2, 1.75, 0.3]; // 3.5 de altura (5x os 0.7 originais)
-const TRENCH_VISUAL_WIDTH = 0.74;
-const TRENCH_COLORS = [[0.55, 0.47, 0.32], [0.46, 0.39, 0.26]]; // sacos de areia, alternando o tom
-
-export function trenchSegmentPositions() {
-  const first = -(TRENCH_SEGMENTS - 1) / 2 * TRENCH_SPACING;
-  return Array.from({ length: TRENCH_SEGMENTS }, (_, i) =>
-    [first + i * TRENCH_SPACING, TRENCH_SEGMENT_HALF[1], TRENCH_Z]);
-}
-export function buildTrenchSegment(index) {
-  const h = TRENCH_SEGMENT_HALF;
-  return new Float32Array(buildBox(TRENCH_VISUAL_WIDTH, h[1]*2, h[2]*2, [0,0,0], TRENCH_COLORS[index % 2]));
-}
