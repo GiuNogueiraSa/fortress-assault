@@ -7,10 +7,12 @@ export const GRAVITY = -9.8;
 export const SHOT_SPEED = 11;
 
 // Vetores "frente" e "direita" no plano XZ a partir do yaw da mira.
+// Iguais aos eixos -Z e +X locais do chassi após mat4.rotationY(aimYaw), para a
+// câmera e o WASD seguirem exatamente para onde o cano aponta.
 export function aimBasis(aimYaw) {
   return {
-    forward: [Math.sin(aimYaw), 0, -Math.cos(aimYaw)],
-    right: [Math.cos(aimYaw), 0, Math.sin(aimYaw)],
+    forward: [-Math.sin(aimYaw), 0, -Math.cos(aimYaw)],
+    right: [Math.cos(aimYaw), 0, -Math.sin(aimYaw)],
   };
 }
 
