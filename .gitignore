@@ -1,0 +1,16 @@
+# SO / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Node (caso seja usado no futuro)
+node_modules/
+
+# Python
+__pycache__/
+
+# Logs e temporários
+*.log
+*.tmp
