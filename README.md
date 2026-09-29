@@ -42,11 +42,11 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 index.html        página, HUD e estilos
 src/main.js       inicialização WebGPU, pipeline, entrada e loop do jogo
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)
-src/geometry.js   primitivas (caixa, cilindro), chão e projétil
-src/trench.js     trincheira em grade de células: colisão, buracos e malha
+src/geometry.js   primitivas (caixa, cilindro, pedra irregular), chão e projétil
+src/trench.js     trincheira: segmentos, lista de buracos (recortados no shader) e colisão
 src/tank.js       tanque (modelo 3D ou caixas) e hierarquia chassi → torre → cano
 src/gltf.js       loader mínimo de .glb (nós, posições, normais, UVs, índices)
-src/lighting.js   shader de iluminação por pixel usado por todos os objetos opacos
+src/lighting.js   iluminação por pixel de todos os opacos + recorte dos buracos da trincheira
 src/physics.js    movimento do tanque, disparo, física e previsão da trajetória
 src/aimLine.js    linha de mira (pipeline line-strip)
 src/explosion.js  shader de explosão (WGSL), onda de choque e ruído compartilhado

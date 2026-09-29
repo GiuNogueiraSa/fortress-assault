@@ -1,9 +1,9 @@
 // ---------- Ponto de entrada: WebGPU, entrada do usuário e loop do jogo ----------
 import { mat4 } from "./math.js";
-import { buildGround, buildProjectile, buildDebris, buildBox, FLOATS_PER_VERTEX } from "./geometry.js";
+import { buildGround, buildProjectile, buildRock, FLOATS_PER_VERTEX } from "./geometry.js";
 import {
-  createTrench, resetTrench, trenchRemaining, trenchHitTest, carveHole, holeCenter, buildTrenchMesh,
-  rubbleForHole, TRENCH_MAX_FLOATS, TRENCH_REBUILD_BELOW, RUBBLE_COLOR,
+  createTrench, resetTrench, trenchHitTest, holeCenter, addHole, trenchDestroyed, trenchFull,
+  holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, RUBBLE_COLOR,
 } from "./trench.js";
 import {
   buildBoxTank, buildModelTank, buildMuzzleFlash, setTankRig, barrelLength, tankModelMatrices,
@@ -80,34 +80,51 @@ async function main() {
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: {} }],
   });
+  const litVertexState = {
+    module: shaderModule,
+    entryPoint: "vs_main",
+    buffers: [{
+      arrayStride: FLOATS_PER_VERTEX * 4,
+      attributes: [
+        { shaderLocation: 0, offset: 0, format: "float32x3" },      // posição
+        { shaderLocation: 1, offset: 3 * 4, format: "float32x3" },  // normal
+        { shaderLocation: 2, offset: 6 * 4, format: "float32x3" },  // cor base
+      ],
+    }],
+  };
   const pipeline = device.createRenderPipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
-    vertex: {
-      module: shaderModule,
-      entryPoint: "vs_main",
-      buffers: [{
-        arrayStride: FLOATS_PER_VERTEX * 4,
-        attributes: [
-          { shaderLocation: 0, offset: 0, format: "float32x3" },      // posição
-          { shaderLocation: 1, offset: 3 * 4, format: "float32x3" },  // normal
-          { shaderLocation: 2, offset: 6 * 4, format: "float32x3" },  // cor base
-        ],
-      }],
-    },
+    vertex: litVertexState,
     fragment: { module: shaderModule, entryPoint: "fs_main", targets: [{ format }] },
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
     multisample: { count: SAMPLE_COUNT },
   });
+  // Trincheira: mesmo shader, mas o fragment fs_trench recorta os buracos
+  // (lista de impactos no grupo 1, só usado por esta pipeline).
+  const holesLayout = device.createBindGroupLayout({
+    entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: {} }],
+  });
+  const trenchPipeline = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout, holesLayout] }),
+    vertex: litVertexState,
+    fragment: { module: shaderModule, entryPoint: "fs_trench", targets: [{ format }] },
+    primitive: { topology: "triangle-list", cullMode: "none" },
+    depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+    multisample: { count: SAMPLE_COUNT },
+  });
 
-  // Objeto desenhável: vertex buffer + uniform buffer próprio + material.
-  // capacityFloats > dados permite reescrever a malha depois (trincheira).
-  function makeDrawable(vertexData, material, capacityFloats = vertexData.length) {
-    const vertexBuffer = device.createBuffer({
-      size: capacityFloats * 4,
+  // Malha na GPU (pode ser compartilhada por vários objetos)
+  function makeMesh(vertexData) {
+    const buffer = device.createBuffer({
+      size: vertexData.byteLength,
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(vertexBuffer, 0, vertexData);
+    device.queue.writeBuffer(buffer, 0, vertexData);
+    return { buffer, count: vertexData.length / FLOATS_PER_VERTEX };
+  }
+  // Objeto desenhável: uniform buffer próprio + material + malha (trocável).
+  function makeDrawable(vertexData, material) {
     const uniformBuffer = device.createBuffer({
       size: OBJECT_UNIFORM_BYTES,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -116,8 +133,10 @@ async function main() {
       layout: bindGroupLayout,
       entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
     });
-    return { vertexBuffer, uniformBuffer, bindGroup, material, count: vertexData.length / FLOATS_PER_VERTEX };
+    const mesh = vertexData ? makeMesh(vertexData) : { buffer: null, count: 0 };
+    return { vertexBuffer: mesh.buffer, count: mesh.count, uniformBuffer, bindGroup, material };
   }
+  const useMesh = (d, mesh) => { d.vertexBuffer = mesh.buffer; d.count = mesh.count; };
   function drawObject(pass, d) {
     pass.setBindGroup(0, d.bindGroup);
     pass.setVertexBuffer(0, d.vertexBuffer);
@@ -143,41 +162,53 @@ async function main() {
   const ground = makeDrawable(buildGround(), MATERIALS.ground);
   const muzzleFlash = makeDrawable(buildMuzzleFlash(), MATERIALS.flash);
 
-  // Trincheira: grade de células (src/trench.js). A malha muda a cada buraco,
-  // então o vertex buffer é alocado uma vez no tamanho do pior caso e reescrito.
+  // Trincheira: segmentos simples (malha fixa) + lista de buracos num uniform
+  // lido pelo fs_trench (src/trench.js e src/lighting.js).
   const trench = createTrench();
   const isTrenchSolid = pos => trenchHitTest(trench, pos);
-  const trenchDrawable = makeDrawable(buildTrenchMesh(trench), MATERIALS.sandbag, TRENCH_MAX_FLOATS);
-  function uploadTrenchMesh() {
-    const data = buildTrenchMesh(trench);
-    device.queue.writeBuffer(trenchDrawable.vertexBuffer, 0, data);
-    trenchDrawable.count = data.length / FLOATS_PER_VERTEX;
-  }
+  const trenchDrawable = makeDrawable(buildTrenchMesh(), MATERIALS.sandbag);
+  const holesBuffer = device.createBuffer({
+    size: HOLES_UNIFORM_BYTES,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const holesBindGroup = device.createBindGroup({
+    layout: holesLayout,
+    entries: [{ binding: 0, resource: { buffer: holesBuffer } }],
+  });
+  const uploadHoles = () => device.queue.writeBuffer(holesBuffer, 0, holesUniformData(trench));
+  uploadHoles();
+  let trenchDamage = 0; // fração da face destruída (recalculada a cada buraco)
 
   const MAX_PROJECTILES = 8;
   const projectileVerts = buildProjectile();
   const projectilePool = Array.from({ length: MAX_PROJECTILES }, () => makeDrawable(projectileVerts, MATERIALS.metal));
 
-  // Destroços da explosão: pool fixo, como o dos projéteis
+  // Escombros com forma de pedra quebrada: ROCK_SHAPES poliedros irregulares
+  // gerados na largada (buildRock); cada pedaço sorteia uma forma, um tamanho e
+  // uma rotação, então nenhum fica igual ao outro.
+  const ROCK_SHAPES = 16;
+  const rockMeshes = Array.from({ length: ROCK_SHAPES }, () => makeMesh(buildRock(RUBBLE_COLOR)));
+  const randomRock = () => rockMeshes[Math.floor(Math.random() * ROCK_SHAPES)];
+  const scaleMatrix = s => new Float32Array([s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1]);
+
+  // Destroços da explosão (voam com a física dos projéteis): pool fixo
   const MAX_DEBRIS = 48;
   const DEBRIS_PER_HIT = 12;
-  const debrisVerts = buildDebris();
-  const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(debrisVerts, MATERIALS.sandbag));
+  const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(null, MATERIALS.sandbag));
 
-  // Entulho estático no chão (fica até a trincheira ser reconstruída).
-  // Cubo unitário escalado pela matriz de modelo de cada pedaço.
+  // Entulho estático no chão (fica até a trincheira ser reconstruída)
   const MAX_RUBBLE = 80;
-  const rubbleVerts = new Float32Array(buildBox(1, 1, 1, [0, 0, 0], RUBBLE_COLOR));
-  const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(rubbleVerts, MATERIALS.sandbag));
+  const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(null, MATERIALS.sandbag));
   const rubble = []; // {slot, model}
   let nextRubbleSlot = 0;
   function spawnRubble(pieces) {
     for (const r of pieces) {
       if (rubble.length >= MAX_RUBBLE) rubble.shift();
-      const s = r.size, h = s * 0.6; // achatado, como lasca caída; base apoiada no chão
-      const scale = new Float32Array([s,0,0,0, 0,h,0,0, 0,0,s,0, 0,0,0,1]);
-      const model = mat4.multiply(mat4.translation(r.pos[0], h / 2, r.pos[2]),
-        mat4.multiply(mat4.rotationY(r.yaw), scale));
+      useMesh(rubblePool[nextRubbleSlot], randomRock());
+      // meio enterrado e levemente inclinado, como pedra que caiu e parou
+      const model = mat4.multiply(mat4.translation(r.pos[0], r.size * 0.15, r.pos[2]),
+        mat4.multiply(mat4.rotationY(Math.random() * 6.28),
+          mat4.multiply(mat4.rotationX((Math.random() - 0.5) * 0.6), scaleMatrix(r.size))));
       rubble.push({ slot: nextRubbleSlot, model });
       nextRubbleSlot = (nextRubbleSlot + 1) % MAX_RUBBLE;
     }
@@ -329,9 +360,11 @@ async function main() {
         pos: [pos[0] + bx * 0.35, pos[1], pos[2] + bz * 0.35],
         vel: [Math.cos(a) * out + bx * 1.5, 2.0 + Math.random() * 3.5, Math.sin(a) * out + bz * 1.5],
         slot: nextDebrisSlot,
+        size: 0.14 + Math.random() * 0.14,
         rot: [Math.random() * 6.28, Math.random() * 6.28],
         spin: [(Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16],
       });
+      useMesh(debrisPool[nextDebrisSlot], randomRock());
       nextDebrisSlot = (nextDebrisSlot + 1) % MAX_DEBRIS;
     }
   }
@@ -353,15 +386,15 @@ async function main() {
     onHitTarget(p) {
       // buraco irregular onde o tiro atravessa, borda queimada, entulho no chão
       const center = holeCenter(p.pos, p.vel);
-      const hole = carveHole(trench, center);
-      uploadTrenchMesh();
-      spawnRubble(rubbleForHole(center, hole.radius, p.vel));
+      const hole = addHole(trench, center);
+      uploadHoles();
+      trenchDamage = trenchDestroyed(trench);
+      spawnRubble(rubbleForHole(center, hole.r, p.vel));
       spawnExplosion(p.pos);
       spawnDebris(p.pos, p.vel);
       shakeTime = SHAKE_DURATION;
-      const destroyed = Math.round((1 - trenchRemaining(trench)) * 100);
-      setStatus(trenchRemaining(trench) >= TRENCH_REBUILD_BELOW
-        ? `Impacto na trincheira! ${destroyed}% destruída`
+      setStatus(trenchDamage < TRENCH_REBUILD_DESTROYED && !trenchFull(trench)
+        ? `Impacto na trincheira! ${Math.round(trenchDamage * 100)}% destruída`
         : "Trincheira destruída! Uma nova aparece em instantes", true);
     },
     onHitGround() {
@@ -415,9 +448,10 @@ async function main() {
     }
 
     // Trincheira quase toda destruída: reconstrói depois que a última explosão acabar
-    if (explosions.length === 0 && trenchRemaining(trench) < TRENCH_REBUILD_BELOW) {
+    if (explosions.length === 0 && (trenchDamage >= TRENCH_REBUILD_DESTROYED || trenchFull(trench))) {
       resetTrench(trench);
-      uploadTrenchMesh();
+      uploadHoles();
+      trenchDamage = 0;
       rubble.length = 0;
       setStatus("Nova trincheira inimiga!", true);
     }
@@ -455,7 +489,7 @@ async function main() {
     for (const r of rubble) writeObject(rubblePool[r.slot], r.model);
     for (const d of debris) {
       writeObject(debrisPool[d.slot], mat4.multiply(mat4.translation(...d.pos),
-        mat4.multiply(mat4.rotationY(d.rot[0]), mat4.rotationX(d.rot[1]))));
+        mat4.multiply(mat4.rotationY(d.rot[0]), mat4.multiply(mat4.rotationX(d.rot[1]), scaleMatrix(d.size)))));
     }
     for (const e of explosions) {
       const slot = explosionSlots[e.slot];
@@ -499,10 +533,12 @@ async function main() {
     if (turret) drawObject(pass, turret);
     drawObject(pass, barrel);
     if (flashTimer > 0) drawObject(pass, muzzleFlash);
-    drawObject(pass, trenchDrawable);
     for (const p of projectiles) drawObject(pass, projectilePool[p.slot]);
     for (const d of debris) drawObject(pass, debrisPool[d.slot]);
     for (const r of rubble) drawObject(pass, rubblePool[r.slot]);
+    pass.setPipeline(trenchPipeline);
+    pass.setBindGroup(1, holesBindGroup);
+    drawObject(pass, trenchDrawable);
 
     // Depois dos opacos (trocam de pipeline): linha de mira, bolas de fogo e ondas de choque
     aimLine.draw(pass);

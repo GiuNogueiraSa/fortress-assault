@@ -4,6 +4,7 @@
 // escurecimento barato das bordas (ângulo entre normal e câmera).
 import { mat4 } from "./math.js";
 import { NOISE_WGSL } from "./explosion.js";
+import { MAX_HOLES } from "./trench.js";
 
 // Materiais: quanto brilho especular, quão "duro" é o brilho, quanto ruído de
 // cor e em que escala (frequência no espaço do objeto). emissive = sem luz.
@@ -62,11 +63,8 @@ const FILL_DIR = vec3f(-0.6, 0.35, -0.7);     // preenchimento vindo do lado opo
 const FILL_COLOR = vec3f(0.55, 0.65, 0.85);
 const AMBIENT = 0.22;
 
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4f {
-  if (u.material.w > 0.5) {
-    return vec4f(in.color, 1.0);   // emissivo (flash do tiro): sem iluminação
-  }
+// Iluminação comum a todos os objetos opacos, a partir da cor base
+fn shade(in: VertexOut, baseColor: vec3f) -> vec3f {
   let V = normalize(u.camPos.xyz - in.worldPos);
   var N = normalize(in.normal);
   // cullMode "none" + modelo doubleSided: a normal deve apontar para a câmera
@@ -79,7 +77,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
   // Variação sutil de cor: duas oitavas do gradient noise do shader de explosão
   let q = in.localPos * u.camPos.w;
   let n = 0.65 * noise(q) + 0.35 * noise(q * 4.0);
-  let albedo = in.color * (1.0 + u.material.z * n * 2.0);
+  let albedo = baseColor * (1.0 + u.material.z * n * 2.0);
 
   let diffuse = max(dot(N, L), 0.0);
   let fill = max(dot(N, F), 0.0);
@@ -90,6 +88,55 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
   let edge = mix(0.72, 1.0, sqrt(max(dot(N, V), 0.0)));
 
   let lit = albedo * (AMBIENT + 0.85 * diffuse * LIGHT_COLOR + 0.25 * fill * FILL_COLOR) + spec * LIGHT_COLOR;
-  return vec4f(lit * edge, 1.0);
+  return lit * edge;
+}
+
+@fragment
+fn fs_main(in: VertexOut) -> @location(0) vec4f {
+  if (u.material.w > 0.5) {
+    return vec4f(in.color, 1.0);   // emissivo (flash do tiro): sem iluminação
+  }
+  return vec4f(shade(in, in.color), 1.0);
+}
+
+// ---------- Trincheira: buracos recortados no fragment shader ----------
+// Cada impacto = (x, y no plano do muro, raio, semente). O raio de corte de
+// cada pixel é perturbado por ruído (o mesmo do shader de explosão), então a
+// borda sai rasgada; dentro do corte o pixel é descartado (buraco vazado) e
+// numa faixa logo fora dele a cor escurece (queimado).
+struct Holes {
+  count: vec4f,                          // x: quantos impactos valem
+  items: array<vec4f, ${MAX_HOLES}>,     // xy: centro, z: raio, w: semente
+};
+@group(1) @binding(0) var<uniform> holes: Holes;
+
+const BURN_COLOR = vec3f(0.08, 0.055, 0.04);
+const BURN_WIDTH = 0.28;   // faixa de queimado fora do corte (unidades de mundo)
+
+@fragment
+fn fs_trench(in: VertexOut) -> @location(0) vec4f {
+  let p = in.worldPos.xy;
+  var edgeDist = 1e9;   // distância até a borda do corte mais próximo (negativa = dentro)
+  let n = i32(holes.count.x);
+  for (var i = 0; i < n; i++) {
+    let h = holes.items[i];
+    let d = distance(p, h.xy);
+    if (d > h.z * 1.7 + BURN_WIDTH) {
+      continue;          // longe: pula o ruído (economiza nos pixels do resto do muro)
+    }
+    // raio perturbado: onda larga (formato) + detalhe fino (rasgos)
+    let q = vec3f(p * 2.2, h.w);
+    let wobble = 0.55 * noise(q) + 0.30 * noise(q * 3.7 + 11.0);
+    let cut = h.z * (1.0 + wobble);
+    edgeDist = min(edgeDist, d - cut);
+  }
+  if (edgeDist < 0.0) {
+    discard;             // dentro do buraco: a parede some aqui (vazado)
+  }
+  // queimado: forte colado na borda, some ao longo da faixa, com manchas de ruído
+  let soot = noise(vec3f(p * 6.0, 3.0));
+  let burn = (1.0 - smoothstep(0.0, BURN_WIDTH * (0.8 + 0.6 * soot), edgeDist)) * 0.92;
+  let base = mix(in.color, BURN_COLOR, burn);
+  return vec4f(shade(in, base), 1.0);
 }
 `;

@@ -416,3 +416,65 @@ de erro.
 
 **Próximo passo:** aguardando a mensagem que aparecer no HUD do navegador
 embutido para corrigir a causa.
+
+## 16. Buracos recortados no shader + escombros com forma de pedra — 28/09/2026 21:44
+
+**Prompt:** os buracos pareciam "feitos de cubos" e os destroços eram cubos.
+Pedidos: (1) buracos por shader: segmentos simples, lista de impactos (centro,
+raio) no fragment shader, raio perturbado por ruído (o mesmo da explosão),
+discard dentro e faixa queimada na borda; (2) destroços como poliedros
+irregulares (vértices deslocados, escala não uniforme e rotação aleatórias),
+usados nos que voam e nos que ficam no chão.
+
+**Feito:**
+- `trench.js` reescrito:
+  - 9 segmentos (caixas) de malha fixa e uma lista de até 32 buracos
+    (x, y no plano do muro, raio 0.4–0.8, semente do ruído), enviada ao
+    shader num uniform (`holesUniformData`).
+  - Reconstrução com 60% da face destruída (amostragem de pontos) ou com a
+    lista cheia.
+- `lighting.js`: a iluminação virou `shade()`, e `fs_trench` foi adicionado.
+  - Para cada buraco, o raio de corte é perturbado por 2 oitavas de
+    `noise()` (formato + rasgos finos).
+  - Pixels dentro do corte são descartados (vazado de verdade).
+  - Numa faixa de 0.28 fora do corte, a cor vai para marrom-preto, com
+    manchas de ruído.
+  - Buracos longe do pixel pulam o ruído (custo só perto dos buracos).
+  - Os buracos ficam num 2º bind group, usado só pela pipeline da
+    trincheira.
+- `geometry.js`: `buildRock()`.
+  - Parte de um icosaedro; cada vértice é deslocado para dentro/fora (fator
+    0.65–1.2) e cada eixo é esticado de forma diferente (achatado/alongado).
+  - Normais por face (facetado) e leve variação de tom por face.
+  - `main.js` gera 16 formas na largada; cada destroço/entulho sorteia forma,
+    tamanho e rotação.
+- A colisão voltou a ser por segmento (caixa de cada um), **menos** os
+  círculos dos buracos no raio médio, para o tiro passar por onde a parede
+  sumiu.
+
+**Arquivos:** `src/trench.js`, `src/lighting.js`, `src/geometry.js`,
+`src/main.js`, `README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- Unitário:
+  - colisão vazada no centro e a 0.9 do raio, sólida a 1.1 do raio e na
+    emenda entre segmentos;
+  - lista limitada a 32 com flag de cheia; reset zera;
+  - pedra com 20 faces, normais para fora, forma diferente a cada chamada.
+- Jogo com câmera de perto (só no teste): buracos rasgados, vazados, com
+  borda queimada; entulho com cara de pedra quebrada.
+- Câmera normal: tiro abre buraco, tremor só no impacto, 2º tiro no mesmo
+  ponto atravessa.
+- Desempenho atirando: DPR 1 e 1.5 ~58 fps, DPR 2 ~51 fps (igual à entrada
+  14). Sem erros no console.
+
+**Problemas:**
+- Com os segmentos separados por uma fresta visual (0.74 de 0.8), via-se o
+  chão atrás do muro em linhas verdes. Com buracos por shader a fresta não
+  serve mais → segmentos encostados, e a divisão fica pela cor alternada.
+- Entulho pequeno demais para ver → tamanho aumentado (pedra ~0.16–0.32).
+- Limitação conhecida: o contorno rasgado existe só no shader. A colisão
+  usa o círculo de raio médio que o ruído perturba, então na borda o
+  visual e a colisão diferem um pouco. Também não há "parede interna" no
+  buraco: a espessura do muro não aparece pela abertura, mas a faixa
+  queimada disfarça.

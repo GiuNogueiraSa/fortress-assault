@@ -63,8 +63,40 @@ export function buildGround() {
 export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));
 }
-// Destroço da explosão: lasca pequena e achatada, na cor da trincheira
-export function buildDebris() {
-  return new Float32Array(buildBox(0.17, 0.08, 0.13, [0,0,0], [0.50, 0.42, 0.28]));
+// Pedaço de escombro: poliedro irregular de "raio" ~0.5 (tamanho ~1).
+// Parte de um icosaedro (12 vértices, 20 faces), empurra cada vértice para
+// dentro/fora por um fator aleatório e estica cada eixo por um fator diferente
+// (achatado/alongado). Normais por face (facetado, cara de pedra quebrada).
+// Cada chamada gera uma forma única.
+const ICO_T = (1 + Math.sqrt(5)) / 2;
+const ICO_VERTS = [
+  [-1, ICO_T, 0], [1, ICO_T, 0], [-1, -ICO_T, 0], [1, -ICO_T, 0],
+  [0, -1, ICO_T], [0, 1, ICO_T], [0, -1, -ICO_T], [0, 1, -ICO_T],
+  [ICO_T, 0, -1], [ICO_T, 0, 1], [-ICO_T, 0, -1], [-ICO_T, 0, 1],
+];
+const ICO_FACES = [
+  [0,11,5], [0,5,1], [0,1,7], [0,7,10], [0,10,11], [1,5,9], [5,11,4], [11,10,2], [10,7,6], [7,1,8],
+  [3,9,4], [3,4,2], [3,2,6], [3,6,8], [3,8,9], [4,9,5], [2,4,11], [6,2,10], [8,6,7], [9,8,1],
+];
+export function buildRock(color, rand = Math.random) {
+  const stretch = [0.55 + rand() * 0.75, 0.45 + rand() * 0.6, 0.55 + rand() * 0.75];
+  const pts = ICO_VERTS.map(v => {
+    const l = Math.hypot(...v);
+    const r = 0.5 * (0.65 + rand() * 0.55);            // deslocamento radial aleatório
+    return v.map((c, k) => (c / l) * r * stretch[k]);
+  });
+  const verts = [];
+  for (const [a, b, c] of ICO_FACES) {
+    const A = pts[a], B = pts[b], C = pts[c];
+    const u = [B[0]-A[0], B[1]-A[1], B[2]-A[2]], w = [C[0]-A[0], C[1]-A[1], C[2]-A[2]];
+    let n = [u[1]*w[2]-u[2]*w[1], u[2]*w[0]-u[0]*w[2], u[0]*w[1]-u[1]*w[0]];
+    const centroid = [(A[0]+B[0]+C[0])/3, (A[1]+B[1]+C[1])/3, (A[2]+B[2]+C[2])/3];
+    if (n[0]*centroid[0] + n[1]*centroid[1] + n[2]*centroid[2] < 0) n = n.map(x => -x); // para fora
+    const l = Math.hypot(...n) || 1;
+    // leve variação de tom por face: pedra não tem cor chapada
+    const tone = 0.85 + rand() * 0.3;
+    pushTri(verts, A, B, C, n.map(x => x / l), color.map(c => c * tone), [0, 0, 0]);
+  }
+  return new Float32Array(verts);
 }
 
