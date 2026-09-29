@@ -19,6 +19,12 @@ import {
 // Plano B: false volta para o tanque antigo em caixas (se o modelo der problema).
 // Se o carregamento do modelo falhar, o jogo também cai nas caixas sozinho.
 const USE_MODEL_3D = true;
+// Anti-aliasing: amostras por pixel (MSAA). 1 desliga; 4 é o valor suportado
+// por qualquer dispositivo WebGPU.
+const SAMPLE_COUNT = 4;
+// Teto do devicePixelRatio: telas muito densas (3x) custariam 9x os pixels de
+// 1x sem ganho visível aqui. Com 2, o jogo mediu ~52 fps; 1.5 ou menos, ~58-60.
+const MAX_PIXEL_RATIO = 2;
 const MODEL_URL = "assets/models/tank.glb";
 
 const statusEl = document.getElementById("status");
@@ -81,6 +87,7 @@ async function main() {
     fragment: { module: shaderModule, entryPoint: "fs_main", targets: [{ format }] },
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+    multisample: { count: SAMPLE_COUNT },
   });
 
   // Objeto desenhável: vertex buffer + uniform buffer próprio + material.
@@ -176,6 +183,7 @@ async function main() {
     fragment: { module: explosionModule, entryPoint: "fs_main", targets: [{ format }] },
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+    multisample: { count: SAMPLE_COUNT },
   });
   const shockwavePipeline = device.createRenderPipeline({
     layout: "auto",
@@ -194,6 +202,7 @@ async function main() {
     },
     primitive: { topology: "triangle-list", cullMode: "none" },
     depthStencil: { format: "depth24plus", depthWriteEnabled: false, depthCompare: "less" },
+    multisample: { count: SAMPLE_COUNT },
   });
   // Várias explosões ao mesmo tempo (tiros seguidos em pontos diferentes):
   // cada "slot" tem seus próprios uniform buffers, como o pool de projéteis.
@@ -222,18 +231,37 @@ async function main() {
   const SHAKE_DURATION = 0.28;     // tremor de câmera no impacto (s)
   const SHAKE_AMPLITUDE = 0.07;    // deslocamento máximo (unidades de mundo)
 
-  const aimLine = createAimLine(device, format);
+  const aimLine = createAimLine(device, format, SAMPLE_COUNT);
   const AIM_LINE_ACTIVE = [1, 1, 1, 0.55];  // mouse travado (mirando)
   const AIM_LINE_IDLE = [1, 1, 1, 0.15];    // mouse solto: bem discreta
 
-  const depthTexture = device.createTexture({
-    size: [canvas.width, canvas.height],
-    format: "depth24plus",
-    usage: GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-
-  const aspect = canvas.width / canvas.height;
-  const projection = mat4.perspective(Math.PI / 4, aspect, 0.1, 200);
+  // ---------- Resolução e alvos de renderização ----------
+  // Resolução interna = tamanho exibido (CSS) x devicePixelRatio, para não
+  // esticar uma imagem pequena (pixelado). Com MSAA, desenha-se numa textura
+  // multisample que é "resolvida" (média das amostras) na textura do canvas;
+  // a profundidade precisa do mesmo sampleCount. Tudo é recriado quando o
+  // tamanho muda (janela redimensionada, zoom, troca de monitor).
+  let msaaTexture = null, depthTexture = null, projection = null;
+  function resizeRenderTargets() {
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    const maxDim = device.limits.maxTextureDimension2D;
+    const w = Math.max(1, Math.min(maxDim, Math.round(canvas.clientWidth * dpr)));
+    const h = Math.max(1, Math.min(maxDim, Math.round(canvas.clientHeight * dpr)));
+    if (depthTexture && w === canvas.width && h === canvas.height) return;
+    canvas.width = w;
+    canvas.height = h;
+    msaaTexture?.destroy();
+    depthTexture?.destroy();
+    msaaTexture = SAMPLE_COUNT > 1 ? device.createTexture({
+      size: [w, h], format, sampleCount: SAMPLE_COUNT, usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    }) : null;
+    depthTexture = device.createTexture({
+      size: [w, h], format: "depth24plus", sampleCount: SAMPLE_COUNT, usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    projection = mat4.perspective(Math.PI / 4, w / h, 0.1, 200);
+  }
+  resizeRenderTargets();
+  window.addEventListener("resize", resizeRenderTargets);
 
   // ---------- Estado ----------
   const state = {
@@ -343,6 +371,8 @@ async function main() {
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
     elapsed += dt;
+    // também pega mudanças de tamanho que não disparam "resize" (layout, zoom)
+    resizeRenderTargets();
 
     moveTank(state, keys, dt);
     const forward = bodyForward(state.yaw);
@@ -419,7 +449,13 @@ async function main() {
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
-      colorAttachments: [{
+      colorAttachments: [msaaTexture ? {
+        view: msaaTexture.createView(),                         // desenha nas 4 amostras
+        resolveTarget: context.getCurrentTexture().createView(), // média vai para o canvas
+        clearValue: { r: 0.55, g: 0.68, b: 0.78, a: 1.0 },
+        loadOp: "clear",
+        storeOp: "discard",                                     // amostras não são mais usadas
+      } : {
         view: context.getCurrentTexture().createView(),
         clearValue: { r: 0.55, g: 0.68, b: 0.78, a: 1.0 },
         loadOp: "clear",

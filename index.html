@@ -34,8 +34,10 @@
   }
   canvas {
     display: block;
-    max-width: 100%;
-    max-height: 100%;
+    /* Tamanho de exibição fixo em CSS; a resolução interna (canvas.width/height)
+       é esse tamanho x devicePixelRatio, calculada em src/main.js */
+    width: min(900px, 100%);
+    height: min(560px, 100%);
     border-radius: 12px;
     box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.5);
     background: #05060a;

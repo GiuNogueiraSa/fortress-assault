@@ -32,7 +32,7 @@ function appendLandingRing(points) {
   return points;
 }
 
-export function createAimLine(device, format) {
+export function createAimLine(device, format, sampleCount = 1) {
   const module = device.createShaderModule({ code: aimLineShaderCode });
   const pipeline = device.createRenderPipeline({
     layout: "auto",
@@ -55,6 +55,7 @@ export function createAimLine(device, format) {
       }],
     },
     primitive: { topology: "line-strip" },
+    multisample: { count: sampleCount },
     // Some atrás do tanque/trincheira, mas não escreve profundidade (é só um guia)
     depthStencil: { format: "depth24plus", depthWriteEnabled: false, depthCompare: "less" },
   });

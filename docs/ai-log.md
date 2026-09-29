@@ -343,3 +343,49 @@ borda); (3) marca de queimado na borda; (4) entulho estático no chão.
 - Os comandos de terminal ficaram temporariamente bloqueados (falha do
   verificador de permissões) no fim da entrada 12. O commit dela foi feito
   no início desta.
+
+## 14. Resolução real do canvas + anti-aliasing (MSAA) — 28/09/2026 21:29
+
+**Prompt:** o jogo parecia pixelado/serrilhado (principalmente objetos
+pequenos). Pedidos: (1) resolução interna do canvas = tamanho em CSS ×
+devicePixelRatio, com recálculo no resize e recriação das texturas; (2) MSAA
+com sampleCount 4, textura de cor multisample resolvida no canvas e
+profundidade com o mesmo sampleCount.
+
+**Feito:**
+- `index.html`: o canvas ganhou tamanho de exibição fixo em CSS
+  (`min(900px, 100%)` × `min(560px, 100%)`). Antes o tamanho vinha dos
+  atributos width/height; sem isso, aumentar `canvas.width` faria o canvas
+  crescer na tela em vez de ganhar nitidez.
+- `resizeRenderTargets()` em `main.js`:
+  - calcula `clientWidth/Height × devicePixelRatio` (limitado a 2 e ao
+    `maxTextureDimension2D`);
+  - se mudou, atualiza `canvas.width/height`, destrói e recria a textura
+    MSAA e a de profundidade, e recalcula a projeção (aspecto);
+  - é chamada no listener de `resize` e também no início de cada quadro,
+    uma comparação barata que pega zoom e mudanças de layout que não
+    disparam `resize`.
+- MSAA: `SAMPLE_COUNT = 4` em `multisample` nas 4 pipelines (iluminada,
+  bola de fogo, onda de choque e linha de mira, que ganhou o parâmetro
+  `sampleCount`). O color attachment desenha na textura multisample com
+  `resolveTarget` = textura do canvas e `storeOp: "discard"`.
+  `SAMPLE_COUNT = 1` desliga o MSAA (caminho sem resolve mantido).
+
+**Arquivos:** `index.html`, `src/main.js`, `src/aimLine.js`, `docs/ai-log.md`.
+
+**Testes:**
+- Mesma cena (relógio virtual) antes e depois, ampliada: as silhuetas do
+  tanque (esteiras, torre) saem de degraus para bordas suavizadas.
+- Resolução interna: DPR 1 → 900×560; 1.25 → 1125×700; 1.5 → 1350×840;
+  2 → 1800×1120. Com a janela redimensionada para 600×400, 1400×900 e de
+  volta, a resolução acompanha (em 600×400 a DPR 2 → 1200×800), sem erros.
+- Desempenho real atirando sem parar: DPR 1 ~59 fps; 1.25 e 1.5 ~58 fps
+  (p95 17 ms); DPR 2 ~52 fps (p95 33 ms) → teto de 2 no devicePixelRatio.
+
+**Problemas:**
+- A borda da bola de fogo continua recortada: ela vem do `discard` no
+  fragment shader (recorte do efeito), não de arestas de triângulo, e o
+  MSAA só suaviza arestas. É o esperado. Suavizá-la exigiria
+  alpha-to-coverage ou blending no efeito.
+- Uma medição em DPR 1.5 deu 0.2 fps com resolução inalterada: a janela de
+  teste ficou parada (troca de janela). Repetida isoladamente, deu 58 fps.
