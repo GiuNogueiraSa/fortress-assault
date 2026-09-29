@@ -60,6 +60,16 @@ async function main() {
   const adapter = await navigator.gpu.requestAdapter();
   if (!adapter) { setStatus("Falha ao obter adaptador GPU", false); return; }
   const device = await adapter.requestDevice();
+  // Erros de validação do WebGPU não lançam exceção: só aparecem no console.
+  // Mostrá-los no HUD permite diagnosticar navegadores sem console à mão
+  // (ex.: o navegador embutido do VS Code).
+  let gpuErrorShown = false;
+  device.addEventListener("uncapturederror", (e) => {
+    console.error(e.error);
+    if (!gpuErrorShown) setStatus("Erro de GPU: " + e.error.message.slice(0, 300), false);
+    gpuErrorShown = true;
+  });
+  device.lost.then((info) => setStatus("GPU perdida: " + info.message, false));
 
   const context = canvas.getContext("webgpu");
   const format = navigator.gpu.getPreferredCanvasFormat();
@@ -367,7 +377,20 @@ async function main() {
     : "Modelo 3D falhou — usando o tanque em caixas (ver console)", usingModel || !USE_MODEL_3D);
 
   let lastTime = performance.now();
+  let frameErrorShown = false;
+  // Uma exceção dentro do quadro pararia o loop (tela congelada/preta sem aviso):
+  // mostra o erro no HUD e continua tentando nos próximos quadros.
   function frame(now) {
+    try {
+      renderFrame(now);
+    } catch (err) {
+      console.error(err);
+      if (!frameErrorShown) setStatus("Erro no quadro: " + err.message, false);
+      frameErrorShown = true;
+    }
+    requestAnimationFrame(frame);
+  }
+  function renderFrame(now) {
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
     elapsed += dt;
@@ -499,7 +522,6 @@ async function main() {
 
     pass.end();
     device.queue.submit([encoder.finish()]);
-    requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }

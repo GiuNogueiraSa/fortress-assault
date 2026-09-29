@@ -389,3 +389,30 @@ profundidade com o mesmo sampleCount.
   alpha-to-coverage ou blending no efeito.
 - Uma medição em DPR 1.5 deu 0.2 fps com resolução inalterada: a janela de
   teste ficou parada (troca de janela). Repetida isoladamente, deu 58 fps.
+
+## 15. Tela preta no navegador embutido do VS Code — 28/09/2026 21:32 (em investigação)
+
+**Prompt:** captura de tela: depois da entrada 14 (resolução real + MSAA),
+o canvas fica todo preto no navegador embutido do VS Code, com o status
+"WebGPU ativo".
+
+**Feito:**
+- Tentativa de reproduzir no Chrome com painel do mesmo tamanho (730×580)
+  e DPR 1 / 1.25 / 1.5, e também em 500×350: renderiza normalmente, sem
+  erros. O problema é específico do navegador embutido, que renderizava
+  antes dessa mudança.
+- Como erros de validação do WebGPU não lançam exceção (só aparecem no
+  console, que esse navegador não mostra), foi adicionado diagnóstico no
+  HUD:
+  - `device` `uncapturederror` → "Erro de GPU: ...";
+  - `device.lost` → "GPU perdida: ...";
+  - loop do quadro com try/catch → "Erro no quadro: ...", e o loop segue
+    em vez de morrer silenciosamente.
+
+**Arquivos:** `src/main.js`, `docs/ai-log.md`.
+
+**Testes:** no Chrome, jogo e explosão continuam funcionando, sem mensagens
+de erro.
+
+**Próximo passo:** aguardando a mensagem que aparecer no HUD do navegador
+embutido para corrigir a causa.
