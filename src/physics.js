@@ -1,6 +1,6 @@
 // ---------- Física: movimento do tanque e projéteis ----------
 import { transformPoint, transformDirection } from "./math.js";
-import { BARREL_LENGTH, tankModelMatrices } from "./tank.js";
+import { barrelLength, tankModelMatrices } from "./tank.js";
 
 export const MOVE_SPEED = 2.4;
 export const TURN_SPEED = 1.5; // rad/s (~86°/s) ao segurar A/D
@@ -31,7 +31,7 @@ export function moveTank(state, keys, dt) {
 // Posição e velocidade iniciais do projétil, saindo da boca do cano.
 export function spawnProjectile(state) {
   const { barrel } = tankModelMatrices(state);
-  const muzzlePos = transformPoint(barrel, [0, 0, -BARREL_LENGTH]);
+  const muzzlePos = transformPoint(barrel, [0, 0, -barrelLength()]);
   const dir = transformDirection(barrel, [0, 0, -1]);
   return {
     pos: muzzlePos,

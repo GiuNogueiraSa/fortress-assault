@@ -1,21 +1,13 @@
 // ---------- Geometria ----------
-// Primitivas geradas na CPU. Cada vértice = [x, y, z, r, g, b] (6 floats).
-// A "iluminação" é fixa por face (FAKE_LIGHT), já embutida na cor do vértice.
+// Primitivas geradas na CPU. Cada vértice = [x, y, z, nx, ny, nz, r, g, b]:
+// posição, normal REAL da face e cor base. A iluminação é calculada no
+// fragment shader (src/lighting.js), não mais "assada" na cor.
+export const FLOATS_PER_VERTEX = 9;
 
-const FAKE_LIGHT = (() => {
-  const v = [0.4, 1.0, 0.35];
-  const l = Math.hypot(...v);
-  return v.map(x => x / l);
-})();
-function shadeFor(n) {
-  const d = n[0]*FAKE_LIGHT[0] + n[1]*FAKE_LIGHT[1] + n[2]*FAKE_LIGHT[2];
-  return 0.45 + 0.55 * Math.max(d, 0);
-}
 function pushTri(verts, a, b, c, normal, color, center) {
-  const shade = shadeFor(normal);
-  const col = [color[0]*shade, color[1]*shade, color[2]*shade];
   for (const p of [a, b, c]) {
-    verts.push(p[0]+center[0], p[1]+center[1], p[2]+center[2], col[0], col[1], col[2]);
+    verts.push(p[0]+center[0], p[1]+center[1], p[2]+center[2],
+               normal[0], normal[1], normal[2], color[0], color[1], color[2]);
   }
 }
 export function pushQuad(verts, p0, p1, p2, p3, normal, color, center) {
@@ -70,5 +62,9 @@ export function buildGround() {
 }
 export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));
+}
+// Destroço da explosão: lasca pequena e achatada, na cor da trincheira
+export function buildDebris() {
+  return new Float32Array(buildBox(0.17, 0.08, 0.13, [0,0,0], [0.50, 0.42, 0.28]));
 }
 

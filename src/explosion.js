@@ -36,6 +36,44 @@ export function explosionUniformData(viewProj, view, center, time, quadSize) {
   return d;
 }
 
+// Gradient noise 3D do shader original (n_rand3 + noise). Exportado para ser
+// reaproveitado também na iluminação (variação sutil de cor, src/lighting.js).
+export const NOISE_WGSL = /* wgsl */ `
+fn n_rand3(p: vec3f) -> vec3f {
+  let r = fract(sin(vec3f(
+    dot(p, vec3f(127.1, 311.7, 371.8)),
+    dot(p, vec3f(269.5, 183.3, 456.1)),
+    dot(p, vec3f(352.5, 207.3, 198.67)),
+  )) * 43758.5453) * 2.0 - 1.0;
+  return normalize(r / cos(r));
+}
+
+// Um termo do gradient noise: gradiente do canto (nv + o) projetado em (fv - o)
+fn corner(nv: vec3f, fv: vec3f, o: vec3f) -> f32 {
+  return dot(n_rand3(nv + o), fv - o);
+}
+
+fn noise(p: vec3f) -> f32 {
+  let fv = fract(p);
+  let nv = floor(p);
+  let w = fv * fv * fv * (fv * (fv * 6.0 - 15.0) + 10.0);
+  return mix(
+    mix(
+      mix(corner(nv, fv, vec3f(0.0, 0.0, 0.0)), corner(nv, fv, vec3f(1.0, 0.0, 0.0)), w.x),
+      mix(corner(nv, fv, vec3f(0.0, 1.0, 0.0)), corner(nv, fv, vec3f(1.0, 1.0, 0.0)), w.x),
+      w.y),
+    mix(
+      mix(corner(nv, fv, vec3f(0.0, 0.0, 1.0)), corner(nv, fv, vec3f(1.0, 0.0, 1.0)), w.x),
+      mix(corner(nv, fv, vec3f(0.0, 1.0, 1.0)), corner(nv, fv, vec3f(1.0, 1.0, 1.0)), w.x),
+      w.y),
+    w.z);
+}
+`;
+
+// Onda de choque: anel que se expande e some, desenhado no mesmo quadro
+// billboard da explosão (mesmo uniform buffer, com quadSize maior).
+export const SHOCKWAVE_DURATION = 0.6;
+
 export const explosionShaderCode = /* wgsl */ `
 struct ExplosionUniforms {
   viewProj: mat4x4f,
@@ -88,36 +126,7 @@ fn glsl_mod(x: f32, y: f32) -> f32 {
   return x - y * floor(x / y);
 }
 
-fn n_rand3(p: vec3f) -> vec3f {
-  let r = fract(sin(vec3f(
-    dot(p, vec3f(127.1, 311.7, 371.8)),
-    dot(p, vec3f(269.5, 183.3, 456.1)),
-    dot(p, vec3f(352.5, 207.3, 198.67)),
-  )) * 43758.5453) * 2.0 - 1.0;
-  return normalize(r / cos(r));
-}
-
-// Um termo do gradient noise: gradiente do canto (nv + o) projetado em (fv - o)
-fn corner(nv: vec3f, fv: vec3f, o: vec3f) -> f32 {
-  return dot(n_rand3(nv + o), fv - o);
-}
-
-fn noise(p: vec3f) -> f32 {
-  let fv = fract(p);
-  let nv = floor(p);
-  let w = fv * fv * fv * (fv * (fv * 6.0 - 15.0) + 10.0);
-  return mix(
-    mix(
-      mix(corner(nv, fv, vec3f(0.0, 0.0, 0.0)), corner(nv, fv, vec3f(1.0, 0.0, 0.0)), w.x),
-      mix(corner(nv, fv, vec3f(0.0, 1.0, 0.0)), corner(nv, fv, vec3f(1.0, 1.0, 0.0)), w.x),
-      w.y),
-    mix(
-      mix(corner(nv, fv, vec3f(0.0, 0.0, 1.0)), corner(nv, fv, vec3f(1.0, 0.0, 1.0)), w.x),
-      mix(corner(nv, fv, vec3f(0.0, 1.0, 1.0)), corner(nv, fv, vec3f(1.0, 1.0, 1.0)), w.x),
-      w.y),
-    w.z);
-}
-
+${NOISE_WGSL}
 fn worley(s: vec3f) -> f32 {
   let si = floor(s);
   let sf = fract(s);
@@ -212,5 +221,22 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
     discard;
   }
   return vec4f(color - vec3f(1.0 - b), 1.0);
+}
+
+// Anel de onda de choque (efeito próprio, não vem do shader original):
+// raio cresce rápido e desacelera (sqrt), fica mais largo e mais transparente.
+const SHOCK_DURATION = ${SHOCKWAVE_DURATION};
+@fragment
+fn fs_shockwave(in: VertexOut) -> @location(0) vec4f {
+  let tt = u.time / SHOCK_DURATION;
+  let d = length(in.uv - vec2f(0.5, 0.4));
+  let r = 0.4 * sqrt(tt);
+  let width = 0.015 + 0.04 * tt;
+  let ring = 1.0 - smoothstep(0.0, width, abs(d - r));
+  let a = ring * (1.0 - tt) * 0.8;
+  if (tt >= 1.0 || a < 0.01) {
+    discard;
+  }
+  return vec4f(1.0, 0.92, 0.75, a);
 }
 `;

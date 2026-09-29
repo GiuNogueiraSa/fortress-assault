@@ -227,3 +227,71 @@ passa a controlar só a elevação do cano. Torre, cano e câmera seguem o corpo
 **Problemas:** uma execução do teste automatizado caiu porque o navegador
 de teste fechou no meio; na repetição, tudo passou. Nenhum problema no
 código do jogo.
+
+## 12. Modelo 3D, iluminação real e explosão elaborada — 28/09/2026
+
+**Prompt:** (1) trocar o tanque de caixas pelo modelo `assets/models/tank.glb`,
+com um loader glTF mínimo, cores sobrescritas (casco rosa escuro, torre e
+detalhes azul marinho), pontos de lógica realinhados e as caixas atrás de
+`USE_MODEL_3D`; (2) iluminação real em tudo (Lambert + Blinn-Phong +
+preenchimento, ruído de cor e bordas escurecidas); (3) explosão com onda de
+choque, destroços físicos e tremor de câmera.
+
+**Feito:**
+- `src/gltf.js`: loader de .glb.
+  - Lê os chunks JSON e BIN e os accessors (respeitando `byteStride`).
+  - Percorre a hierarquia de nós (matrix ou TRS) e lê posições, normais, UVs
+    e índices.
+  - Ignora texturas e materiais.
+- Modelo: "Tank" de Willy Decarpentrie (Sketchfab, CC BY 4.0), creditado no
+  README. O arquivo não tem nó separado de torre ou cano, então em
+  `src/tank.js` a malha é dividida em componentes conexos, classificados por
+  região:
+  - cano: cilindro fino à frente da torre;
+  - torre e detalhes: acima de 140 ou esteiras/rodas (|x| > 50);
+  - casco: o resto.
+- O cano vira uma malha à parte, relativa ao pivô do mantelete, para girar
+  com a elevação do mouse.
+- Rig por versão (pivô da torre, encaixe e comprimento do cano):
+  `setTankRig()`. `tankModelMatrices`, o disparo e a linha de mira usam o rig
+  ativo.
+- Escala: 2.2 de comprimento (as caixas tinham 2.0), girado 180° (o cano do
+  arquivo aponta para +Z) e apoiado no chão.
+- `src/lighting.js`: um shader para todos os opacos.
+  - Vértices com normal real (9 floats).
+  - Luz principal + especular Blinn-Phong + preenchimento + ambiente.
+  - Ruído de cor com o gradient noise do shader de explosão (extraído para
+    `NOISE_WGSL`, no espaço do objeto para não "escorrer").
+  - Bordas escurecidas por dot(N, V).
+  - Material por objeto: metal, chão, sacos de areia, flash emissivo.
+- Explosão:
+  - `fs_shockwave` no mesmo módulo, com anel semitransparente.
+  - 12 destroços por impacto, usando a mesma física de projétil
+    (`updateProjectiles` sem colisão com o muro).
+  - Tremor de câmera de 0.28 s, decaindo.
+
+**Arquivos:** `src/gltf.js` (novo), `src/lighting.js` (novo), `src/tank.js`,
+`src/geometry.js`, `src/trench.js`, `src/physics.js`, `src/explosion.js`,
+`src/main.js`, `README.md`, `assets/models/tank.glb` (adicionado),
+`docs/ai-log.md`.
+
+**Testes:**
+- **Alinhamento do cano:** a malha do cano vai de -0.106 a -0.420 a partir
+  do pivô, centrada no eixo, e o rig usa 0.422 de comprimento. Vista lateral
+  (câmera movida só no teste) a 60° e a 9°: o flash e o projétil saem da boca
+  do cano, e a linha de mira começa ali.
+- **Jogo:** o tiro abre buraco, o 2º tiro atravessa, e o tremor aparece só
+  depois do impacto. Os quadros mostram bola de fogo, anel, destroços e o
+  buraco no muro iluminado.
+- **Desempenho real:** 60 fps parado e atirando sem parar (p95 16.9 ms, um
+  pico isolado de 33 ms).
+- **Plano B e fallback:** `USE_MODEL_3D = false` e `.glb` inacessível caem
+  no tanque de caixas, com aviso no HUD.
+
+**Problemas:**
+- Onda de choque com só a metade de baixo visível: o quad billboard, com a
+  câmera no alto, "deita" a metade de cima para dentro do muro e o teste de
+  profundidade a esconde. → Centro do anel puxado 0.8 na direção da câmera.
+- Destroços pequenos demais para ver de longe → caixa aumentada.
+- O modelo não tem torre/cano separados → cano separado por região dos
+  componentes conexos (limites medidos no arquivo).

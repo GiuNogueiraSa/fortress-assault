@@ -3,7 +3,7 @@
 // toda). Cada impacto remove as células dentro de um círculo -> buraco redondo.
 // A mesma grade serve para desenhar e para a colisão: o projétil passa pelo
 // buraco exatamente onde ele aparece na tela.
-import { boxFaces, pushQuad } from "./geometry.js";
+import { boxFaces, pushQuad, FLOATS_PER_VERTEX } from "./geometry.js";
 
 export const TRENCH_WIDTH = 7.2;   // mesma largura dos 9 blocos de 0.8 da versão anterior
 export const TRENCH_HEIGHT = 3.5;
@@ -23,8 +23,8 @@ const LEFT = -TRENCH_WIDTH / 2;
 const BAND_COLS = 8;
 const COLORS = [[0.55, 0.47, 0.32], [0.46, 0.39, 0.26]];
 
-// Pior caso da malha: todas as células com as 6 faces (6 vértices x 6 floats cada)
-export const TRENCH_MAX_FLOATS = COLS * ROWS * 6 * 6 * 6;
+// Pior caso da malha: todas as células com as 6 faces (6 vértices cada)
+export const TRENCH_MAX_FLOATS = COLS * ROWS * 6 * 6 * FLOATS_PER_VERTEX;
 
 export function createTrench() {
   return { alive: new Uint8Array(COLS * ROWS).fill(1), aliveCount: COLS * ROWS };
