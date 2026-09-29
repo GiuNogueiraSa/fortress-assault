@@ -295,3 +295,51 @@ choque, destroços físicos e tremor de câmera.
 - Destroços pequenos demais para ver de longe → caixa aumentada.
 - O modelo não tem torre/cano separados → cano separado por região dos
   componentes conexos (limites medidos no arquivo).
+
+## 13. Dano mais realista na trincheira — 28/09/2026 21:24
+
+**Prompt:** os buracos pareciam "limpos" demais. Pedidos: (1) subdividir os
+segmentos em sub-blocos com colisão própria; (2) remover um grupo irregular
+de sub-blocos (raio aleatório de 0.4 a 0.8, 70% de chance por bloco na
+borda); (3) marca de queimado na borda; (4) entulho estático no chão.
+
+**Feito:**
+- (1) Já atendido: desde a entrada 8 o muro é uma grade de 0.1 × 0.1 (8 × 35
+  células por bloco antigo de 0.8), cada célula com colisão própria. O prompt
+  descrevia a versão com 9 segmentos grandes, então a grade foi mantida.
+- (2) `carveHole` com buraco irregular:
+  - raio sorteado entre 0.4 e 0.8 por impacto;
+  - dentro de 75% do raio tudo sai;
+  - no anel da borda, cada célula sai com 70% de chance;
+  - uma ondulação angular leve (2 senóides) tira o formato de círculo.
+- (3) Valor `burn` por célula: as que sobram até 0.25 além da borda escurecem
+  em direção a um marrom-preto (mais forte perto do buraco, com leve
+  variação aleatória). O ruído de cor da iluminação continua atuando por
+  cima. Vale para todas as faces da célula, inclusive as voltadas para dentro
+  do buraco.
+- (4) `rubbleForHole`: 4 a 8 lascas achatadas no chão, ao pé do buraco (60%
+  do lado para onde o tiro ia). São estáticas, ficam até a trincheira ser
+  reconstruída, com pool de 80.
+
+**Arquivos:** `src/trench.js`, `src/main.js`, `README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- Unitário, 5 buracos: raio de 0.44 a 0.71; removidas 51–144 células contra
+  61–160 de um círculo perfeito; 3–9 células removidas fora do raio médio e
+  3–16 mantidas dentro (contorno irregular); 100–149 células queimadas;
+  entulho no chão e junto ao muro.
+- Jogo: 3 tiros com câmera de perto (só no teste) mostram buracos
+  irregulares, borda escura e entulho. Com a câmera normal: tiro abre
+  buraco, tremor só no impacto, 2º tiro no mesmo ponto atravessa. Sem erros
+  no console.
+
+**Problemas:**
+- O pedido (1) não batia com o código atual (já mais fino que o sugerido) →
+  mantida a grade, registrado aqui.
+- O raio aleatório de 0.4 a 0.8 substitui o diâmetro fixo de 1.6 pedido na
+  entrada 8. Com buracos menores, um tiro inclinado repetido pode pegar a
+  borda e alargar o buraco em vez de atravessar, o que é coerente com o
+  dano.
+- Os comandos de terminal ficaram temporariamente bloqueados (falha do
+  verificador de permissões) no fim da entrada 12. O commit dela foi feito
+  no início desta.

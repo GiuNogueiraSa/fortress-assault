@@ -5,9 +5,9 @@ Computação Gráfica). O jogador controla um tanque (modelo 3D glTF) em
 terceira pessoa, ajusta a elevação do canhão com o mouse — com uma linha
 prevendo a trajetória do tiro — e atira projéteis com física de gravidade real
 contra uma trincheira inimiga. Cada acerto explode (bola de fogo, onda de
-choque, destroços e tremor de câmera) e abre um buraco redondo no muro (dá
-para atirar através dele); com mais de 60% do muro destruído, uma trincheira
-nova aparece. Todos os objetos usam iluminação por pixel (Lambert +
+choque, destroços e tremor de câmera) e abre um buraco irregular no muro, com
+a borda queimada e entulho no chão (dá para atirar através dele); com mais de
+60% do muro destruído, uma trincheira nova aparece. Todos os objetos usam iluminação por pixel (Lambert +
 Blinn-Phong + luz de preenchimento, com variação de cor por ruído).
 
 ## Como rodar localmente

@@ -1,9 +1,9 @@
 // ---------- Ponto de entrada: WebGPU, entrada do usuário e loop do jogo ----------
 import { mat4 } from "./math.js";
-import { buildGround, buildProjectile, buildDebris, FLOATS_PER_VERTEX } from "./geometry.js";
+import { buildGround, buildProjectile, buildDebris, buildBox, FLOATS_PER_VERTEX } from "./geometry.js";
 import {
   createTrench, resetTrench, trenchRemaining, trenchHitTest, carveHole, holeCenter, buildTrenchMesh,
-  TRENCH_MAX_FLOATS, TRENCH_REBUILD_BELOW,
+  rubbleForHole, TRENCH_MAX_FLOATS, TRENCH_REBUILD_BELOW, RUBBLE_COLOR,
 } from "./trench.js";
 import {
   buildBoxTank, buildModelTank, buildMuzzleFlash, setTankRig, barrelLength, tankModelMatrices,
@@ -146,6 +146,25 @@ async function main() {
   const DEBRIS_PER_HIT = 12;
   const debrisVerts = buildDebris();
   const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(debrisVerts, MATERIALS.sandbag));
+
+  // Entulho estático no chão (fica até a trincheira ser reconstruída).
+  // Cubo unitário escalado pela matriz de modelo de cada pedaço.
+  const MAX_RUBBLE = 80;
+  const rubbleVerts = new Float32Array(buildBox(1, 1, 1, [0, 0, 0], RUBBLE_COLOR));
+  const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(rubbleVerts, MATERIALS.sandbag));
+  const rubble = []; // {slot, model}
+  let nextRubbleSlot = 0;
+  function spawnRubble(pieces) {
+    for (const r of pieces) {
+      if (rubble.length >= MAX_RUBBLE) rubble.shift();
+      const s = r.size, h = s * 0.6; // achatado, como lasca caída; base apoiada no chão
+      const scale = new Float32Array([s,0,0,0, 0,h,0,0, 0,0,s,0, 0,0,0,1]);
+      const model = mat4.multiply(mat4.translation(r.pos[0], h / 2, r.pos[2]),
+        mat4.multiply(mat4.rotationY(r.yaw), scale));
+      rubble.push({ slot: nextRubbleSlot, model });
+      nextRubbleSlot = (nextRubbleSlot + 1) % MAX_RUBBLE;
+    }
+  }
 
   // ---------- Explosão (shader externo, ver src/explosion.js) ----------
   // Bola de fogo: quad billboard gerado no vertex shader; pixels fora do efeito
@@ -294,8 +313,11 @@ async function main() {
 
   const projectileEvents = {
     onHitTarget(p) {
-      carveHole(trench, holeCenter(p.pos, p.vel)); // buraco redondo onde o tiro atravessa; o resto fica de pé
+      // buraco irregular onde o tiro atravessa, borda queimada, entulho no chão
+      const center = holeCenter(p.pos, p.vel);
+      const hole = carveHole(trench, center);
       uploadTrenchMesh();
+      spawnRubble(rubbleForHole(center, hole.radius, p.vel));
       spawnExplosion(p.pos);
       spawnDebris(p.pos, p.vel);
       shakeTime = SHAKE_DURATION;
@@ -343,6 +365,7 @@ async function main() {
     if (explosions.length === 0 && trenchRemaining(trench) < TRENCH_REBUILD_BELOW) {
       resetTrench(trench);
       uploadTrenchMesh();
+      rubble.length = 0;
       setStatus("Nova trincheira inimiga!", true);
     }
 
@@ -376,6 +399,7 @@ async function main() {
     }
     writeObject(trenchDrawable, identity); // malha já em coordenadas de mundo
     for (const p of projectiles) writeObject(projectilePool[p.slot], mat4.translation(...p.pos));
+    for (const r of rubble) writeObject(rubblePool[r.slot], r.model);
     for (const d of debris) {
       writeObject(debrisPool[d.slot], mat4.multiply(mat4.translation(...d.pos),
         mat4.multiply(mat4.rotationY(d.rot[0]), mat4.rotationX(d.rot[1]))));
@@ -419,6 +443,7 @@ async function main() {
     drawObject(pass, trenchDrawable);
     for (const p of projectiles) drawObject(pass, projectilePool[p.slot]);
     for (const d of debris) drawObject(pass, debrisPool[d.slot]);
+    for (const r of rubble) drawObject(pass, rubblePool[r.slot]);
 
     // Depois dos opacos (trocam de pipeline): linha de mira, bolas de fogo e ondas de choque
     aimLine.draw(pass);
