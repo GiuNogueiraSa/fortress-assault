@@ -516,3 +516,78 @@ análise), `docs/ai-log.md`.
   Era erro da extração, não da resposta → linha de prosa removida, e o
   vertex compila.
 - O servidor local estava parado desde a sessão anterior → reiniciado.
+
+## 18. Visual: tanque amarelo com onça, paredão de concreto, céu com sol — 04/10/2026 16:40
+
+**Prompt:** mudanças só estéticas, mantendo a jogabilidade:
+(1) tanque amarelo com detalhes pretos e estampa de onça procedural;
+(2) trincheira azul escura, mais alta (5–6), com relevo de blocos, detalhes
+vinho e verdes por ruído;
+(3) destroços menores (0.08–0.16), em maior número (24–32), com variação de
+cor e onda de choque mais sutil;
+(4) céu em gradiente com sol no horizonte e luz na direção do sol;
+(5) mais preenchimento, brilho do sol no chão, mantendo ~50+ fps com MSAA 4.
+
+**Feito:**
+- **Tanque (`tank.js`, `lighting.js`).**
+  - A classificação das peças ganhou "turret": casco e torre em
+    `TANK_BODY_COLOR` (0.95, 0.85, 0.1); cano, esteiras e rodas em
+    `TANK_DETAIL_COLOR` (quase preto).
+  - Estampa de onça no fragment shader (material `tankPaint`): células de
+    Voronoi (F1, com os pontos do `n_rand3` do shader de explosão) com borda
+    perturbada por ruído. Formam rosetas (anel marrom (0.4, 0.2, 0.05) e
+    miolo mais escuro) no espaço do objeto, aplicadas só nas partes amarelas.
+- **Paredão (`trench.js`, `fs_trench`).**
+  - Altura 3.5 → 5.5, cor base azul (0.08, 0.12, 0.35).
+  - Blocos de concreto em fiada: juntas escuras e **chanfro só na normal**
+    (sem geometria extra), rugosidade por ruído e tom diferente por bloco.
+  - Franja vinho no topo e nas pontas, com borda irregular.
+  - Manchas verdes orgânicas mais frequentes perto da base.
+  - Os buracos e o queimado continuam iguais.
+- **Destroços (`main.js`, `geometry.js`).**
+  - 24–32 por impacto, tamanho 0.08–0.16, mais espalhados, pool de 128.
+  - Formato de **lasca** (`buildRock(..., flat=true)`, achatada num eixo).
+  - Cor por pedaço: tinta sorteada (concreto azul, escuro, terra, vinho,
+    verde, com brilho variando), e 40% com manchas.
+  - O entulho do chão também ficou menor e colorido.
+- **Onda de choque:** 0.6 → 0.4 s e opacidade 0.8 → 0.4.
+- **Céu (`src/sky.js`).**
+  - Triângulo em tela cheia desenhado primeiro, sem profundidade.
+  - A direção de visão é refeita pelos eixos da câmera.
+  - Gradiente laranja (horizonte) → azul (alto), mais disco do sol e halo.
+- **Luz e ambiente.**
+  - A luz principal usa o azimute do sol, cor quente.
+  - Preenchimento mais forte (0.25 → 0.60) do lado da câmera.
+  - Ambiente hemisférico (céu/chão).
+  - Brilho especular no chão.
+  - Névoa leve na distância, na cor do horizonte, que integra o chão ao céu.
+- **Uniform por objeto:** 160 → 176 bytes (`extra` = padrão + tinta).
+
+**Arquivos:** `src/lighting.js`, `src/sky.js` (novo), `src/tank.js`,
+`src/trench.js`, `src/geometry.js`, `src/explosion.js`, `src/main.js`,
+`README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- Capturas da câmera normal, de lado (tanque) e de perto (paredão): onça
+  em rosetas, blocos com relevo, vinho e verde, sol visível no horizonte e
+  através dos buracos, lascas coloridas.
+- Fluxo de tiro, buraco, tremor e 2º tiro atravessando; controles
+  (W/S/A/D, curva, mouse só vertical).
+- Plano B e fallback do modelo.
+- Desempenho atirando: DPR 1 / 1.25 / 1.5 → 60 fps; DPR 2 → 55 fps. Sem
+  erros no console.
+
+**Problemas:**
+- A estampa saiu com pintinhas pequenas e densas → frequência das células
+  7.5 → 3.4, e viraram rosetas grandes.
+- **Sol fora de quadro:** a câmera olha ~20° para baixo e só enxerga até
+  ~1.5° acima do horizonte; à frente, o paredão cobre o horizonte (±14°).
+  → O disco foi desenhado a 0.5° de elevação e 22° de azimute, mas
+  a luz usa o mesmo azimute com 30° de elevação (senão nada seria iluminado
+  por cima). É uma "trapaça" de composição, documentada no código.
+- O sol, à direita, ficou escondido atrás do painel de controles do HUD
+  (que cobre o canto do canvas) → movido para a esquerda (−22°).
+- Com o sol à frente, a face do paredão fica contra a luz e escura →
+  preenchimento e ambiente aumentados.
+- Uma medição em DPR 1.5 travou (janela de teste sem foco, como na
+  entrada 14) → repetida isoladamente: 60 fps.

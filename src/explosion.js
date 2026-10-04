@@ -72,7 +72,7 @@ fn noise(p: vec3f) -> f32 {
 
 // Onda de choque: anel que se expande e some, desenhado no mesmo quadro
 // billboard da explosão (mesmo uniform buffer, com quadSize maior).
-export const SHOCKWAVE_DURATION = 0.6;
+export const SHOCKWAVE_DURATION = 0.4;  // mais curta = expansão mais rápida
 
 export const explosionShaderCode = /* wgsl */ `
 struct ExplosionUniforms {
@@ -233,7 +233,7 @@ fn fs_shockwave(in: VertexOut) -> @location(0) vec4f {
   let r = 0.4 * sqrt(tt);
   let width = 0.015 + 0.04 * tt;
   let ring = 1.0 - smoothstep(0.0, width, abs(d - r));
-  let a = ring * (1.0 - tt) * 0.8;
+  let a = ring * (1.0 - tt) * 0.4;    // mais sutil
   if (tt >= 1.0 || a < 0.01) {
     discard;
   }

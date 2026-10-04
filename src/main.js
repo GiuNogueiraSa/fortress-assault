@@ -3,7 +3,7 @@ import { mat4 } from "./math.js";
 import { buildGround, buildProjectile, buildRock, FLOATS_PER_VERTEX } from "./geometry.js";
 import {
   createTrench, resetTrench, trenchHitTest, holeCenter, addHole, trenchDestroyed, trenchFull,
-  holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, RUBBLE_COLOR,
+  holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, randomDebrisTint,
 } from "./trench.js";
 import {
   buildBoxTank, buildModelTank, buildMuzzleFlash, setTankRig, barrelLength, tankModelMatrices,
@@ -12,6 +12,7 @@ import { loadGLB } from "./gltf.js";
 import { bodyForward, moveTank, spawnProjectile, updateProjectiles, predictTrajectory } from "./physics.js";
 import { createAimLine } from "./aimLine.js";
 import { litShaderCode, objectUniformData, OBJECT_UNIFORM_BYTES, MATERIALS } from "./lighting.js";
+import { createSky } from "./sky.js";
 import {
   explosionShaderCode, explosionUniformData, EXPLOSION_UNIFORM_BYTES, EXPLOSION_DURATION, SHOCKWAVE_DURATION,
 } from "./explosion.js";
@@ -155,8 +156,8 @@ async function main() {
   const usingModel = tankGeo !== null;
   if (!usingModel) tankGeo = buildBoxTank();
   setTankRig(tankGeo.rig);
-  const chassis = makeDrawable(tankGeo.chassis, MATERIALS.metal);
-  const turret = tankGeo.turret ? makeDrawable(tankGeo.turret, MATERIALS.metal) : null;
+  const chassis = makeDrawable(tankGeo.chassis, MATERIALS.tankPaint);   // amarelo com onça
+  const turret = tankGeo.turret ? makeDrawable(tankGeo.turret, MATERIALS.tankPaint) : null;
   const barrel = makeDrawable(tankGeo.barrel, MATERIALS.metal);
 
   const ground = makeDrawable(buildGround(), MATERIALS.ground);
@@ -166,7 +167,7 @@ async function main() {
   // lido pelo fs_trench (src/trench.js e src/lighting.js).
   const trench = createTrench();
   const isTrenchSolid = pos => trenchHitTest(trench, pos);
-  const trenchDrawable = makeDrawable(buildTrenchMesh(), MATERIALS.sandbag);
+  const trenchDrawable = makeDrawable(buildTrenchMesh(), MATERIALS.concrete);
   const holesBuffer = device.createBuffer({
     size: HOLES_UNIFORM_BYTES,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -186,20 +187,27 @@ async function main() {
   // Escombros com forma de pedra quebrada: ROCK_SHAPES poliedros irregulares
   // gerados na largada (buildRock); cada pedaço sorteia uma forma, um tamanho e
   // uma rotação, então nenhum fica igual ao outro.
+  // cor base cinza: a cor de cada pedaço vem da tinta sorteada (randomDebrisTint)
   const ROCK_SHAPES = 16;
-  const rockMeshes = Array.from({ length: ROCK_SHAPES }, () => makeMesh(buildRock(RUBBLE_COLOR)));
+  const ROCK_GREY = [0.5, 0.5, 0.5];
+  const rockMeshes = Array.from({ length: ROCK_SHAPES }, () => makeMesh(buildRock(ROCK_GREY)));
+  const chipMeshes = Array.from({ length: ROCK_SHAPES }, () => makeMesh(buildRock(ROCK_GREY, Math.random, true)));
   const randomRock = () => rockMeshes[Math.floor(Math.random() * ROCK_SHAPES)];
+  const randomChip = () => chipMeshes[Math.floor(Math.random() * ROCK_SHAPES)];
+  const randomPattern = () => (Math.random() < 0.4 ? 2 : 0);   // 40% com manchas
   const scaleMatrix = s => new Float32Array([s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1]);
 
   // Destroços da explosão (voam com a física dos projéteis): pool fixo
-  const MAX_DEBRIS = 48;
-  const DEBRIS_PER_HIT = 12;
-  const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(null, MATERIALS.sandbag));
+  // mais lascas, menores: 24-32 por impacto, tamanho 0.08-0.16
+  const MAX_DEBRIS = 128;
+  const DEBRIS_PER_HIT_MIN = 24, DEBRIS_PER_HIT_MAX = 32;
+  const DEBRIS_SIZE_MIN = 0.08, DEBRIS_SIZE_MAX = 0.16;
+  const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(null, MATERIALS.rock));
 
   // Entulho estático no chão (fica até a trincheira ser reconstruída)
   const MAX_RUBBLE = 80;
-  const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(null, MATERIALS.sandbag));
-  const rubble = []; // {slot, model}
+  const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(null, MATERIALS.rock));
+  const rubble = []; // {slot, model, tint, pattern}
   let nextRubbleSlot = 0;
   function spawnRubble(pieces) {
     for (const r of pieces) {
@@ -209,7 +217,7 @@ async function main() {
       const model = mat4.multiply(mat4.translation(r.pos[0], r.size * 0.15, r.pos[2]),
         mat4.multiply(mat4.rotationY(Math.random() * 6.28),
           mat4.multiply(mat4.rotationX((Math.random() - 0.5) * 0.6), scaleMatrix(r.size))));
-      rubble.push({ slot: nextRubbleSlot, model });
+      rubble.push({ slot: nextRubbleSlot, model, tint: randomDebrisTint(), pattern: randomPattern() });
       nextRubbleSlot = (nextRubbleSlot + 1) % MAX_RUBBLE;
     }
   }
@@ -273,6 +281,7 @@ async function main() {
   const SHAKE_AMPLITUDE = 0.07;    // deslocamento máximo (unidades de mundo)
 
   const aimLine = createAimLine(device, format, SAMPLE_COUNT);
+  const sky = createSky(device, format, SAMPLE_COUNT);
   const AIM_LINE_ACTIVE = [1, 1, 1, 0.55];  // mouse travado (mirando)
   const AIM_LINE_IDLE = [1, 1, 1, 0.15];    // mouse solto: bem discreta
 
@@ -282,6 +291,7 @@ async function main() {
   // multisample que é "resolvida" (média das amostras) na textura do canvas;
   // a profundidade precisa do mesmo sampleCount. Tudo é recriado quando o
   // tamanho muda (janela redimensionada, zoom, troca de monitor).
+  const FOV_Y = Math.PI / 4;
   let msaaTexture = null, depthTexture = null, projection = null;
   function resizeRenderTargets() {
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -299,7 +309,7 @@ async function main() {
     depthTexture = device.createTexture({
       size: [w, h], format: "depth24plus", sampleCount: SAMPLE_COUNT, usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    projection = mat4.perspective(Math.PI / 4, w / h, 0.1, 200);
+    projection = mat4.perspective(FOV_Y, w / h, 0.1, 200);
   }
   resizeRenderTargets();
   window.addEventListener("resize", resizeRenderTargets);
@@ -352,19 +362,22 @@ async function main() {
   function spawnDebris(pos, shotVel) {
     const back = Math.hypot(shotVel[0], shotVel[2]) || 1;
     const bx = -shotVel[0] / back, bz = -shotVel[2] / back;
-    for (let k = 0; k < DEBRIS_PER_HIT; k++) {
+    const count = DEBRIS_PER_HIT_MIN + Math.floor(Math.random() * (DEBRIS_PER_HIT_MAX - DEBRIS_PER_HIT_MIN + 1));
+    for (let k = 0; k < count; k++) {
       const a = Math.random() * Math.PI * 2;
-      const out = 1.0 + Math.random() * 2.5;
+      const out = 1.5 + Math.random() * 3.0;   // mais espalhadas
       if (debris.length >= MAX_DEBRIS) debris.shift();
       debris.push({
         pos: [pos[0] + bx * 0.35, pos[1], pos[2] + bz * 0.35],
         vel: [Math.cos(a) * out + bx * 1.5, 2.0 + Math.random() * 3.5, Math.sin(a) * out + bz * 1.5],
         slot: nextDebrisSlot,
-        size: 0.14 + Math.random() * 0.14,
+        size: DEBRIS_SIZE_MIN + Math.random() * (DEBRIS_SIZE_MAX - DEBRIS_SIZE_MIN),
+        tint: randomDebrisTint(),
+        pattern: randomPattern(),
         rot: [Math.random() * 6.28, Math.random() * 6.28],
         spin: [(Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16],
       });
-      useMesh(debrisPool[nextDebrisSlot], randomRock());
+      useMesh(debrisPool[nextDebrisSlot], randomChip());
       nextDebrisSlot = (nextDebrisSlot + 1) % MAX_DEBRIS;
     }
   }
@@ -471,8 +484,9 @@ async function main() {
     const camLookAt = [state.x + shake[0], 0.8 + shake[1], state.z + shake[2]];
     const view = mat4.lookAt(eye, camLookAt, [0, 1, 0]);
     const viewProj = mat4.multiply(projection, view);
-    const writeObject = (d, model) =>
-      device.queue.writeBuffer(d.uniformBuffer, 0, objectUniformData(viewProj, model, d.material, eye));
+    const writeObject = (d, model, tint, pattern) =>
+      device.queue.writeBuffer(d.uniformBuffer, 0, objectUniformData(viewProj, model, d.material, eye, tint, pattern));
+    sky.update(view, FOV_Y, canvas.width / canvas.height);
 
     const models = tankModelMatrices(state);
     const identity = mat4.identity();
@@ -486,10 +500,11 @@ async function main() {
     }
     writeObject(trenchDrawable, identity); // malha já em coordenadas de mundo
     for (const p of projectiles) writeObject(projectilePool[p.slot], mat4.translation(...p.pos));
-    for (const r of rubble) writeObject(rubblePool[r.slot], r.model);
+    for (const r of rubble) writeObject(rubblePool[r.slot], r.model, r.tint, r.pattern);
     for (const d of debris) {
       writeObject(debrisPool[d.slot], mat4.multiply(mat4.translation(...d.pos),
-        mat4.multiply(mat4.rotationY(d.rot[0]), mat4.multiply(mat4.rotationX(d.rot[1]), scaleMatrix(d.size)))));
+        mat4.multiply(mat4.rotationY(d.rot[0]), mat4.multiply(mat4.rotationX(d.rot[1]), scaleMatrix(d.size)))),
+        d.tint, d.pattern);
     }
     for (const e of explosions) {
       const slot = explosionSlots[e.slot];
@@ -526,7 +541,8 @@ async function main() {
       },
     });
 
-    // Opacos, todos com a mesma iluminação
+    // Céu primeiro (atrás de tudo), depois os opacos com a mesma iluminação
+    sky.draw(pass);
     pass.setPipeline(pipeline);
     drawObject(pass, ground);
     drawObject(pass, chassis);

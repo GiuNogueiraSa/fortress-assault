@@ -7,9 +7,10 @@
 import { mat4 } from "./math.js";
 import { buildBox, buildCylinderX } from "./geometry.js";
 
-// Cores sobrescritas do modelo 3D (a textura original é ignorada)
-export const TANK_HULL_COLOR = [0.45, 0.05, 0.25];   // corpo/casco: rosa escuro
-export const TANK_TURRET_COLOR = [0.05, 0.08, 0.25]; // torre/detalhes: azul marinho
+// Cores sobrescritas do modelo 3D (a textura original é ignorada). A estampa
+// de onça é aplicada por cima do amarelo no fragment shader (lighting.js).
+export const TANK_BODY_COLOR = [0.95, 0.85, 0.10];   // casco e torre: amarelo
+export const TANK_DETAIL_COLOR = [0.08, 0.08, 0.09]; // cano, esteiras, rodas: quase preto
 
 // ---------- Versão em caixas (plano B) ----------
 export function buildChassis() {
@@ -101,7 +102,8 @@ function classify(b) {
     && b[1] >= BARREL_REGION.minY && b[2] >= BARREL_REGION.minZ;
   if (inBarrel) return "barrel";
   const cx = (b[0] + b[3]) / 2, cy = (b[1] + b[4]) / 2;
-  if (cy > TURRET_MIN_Y || Math.abs(cx) > TRACKS_MIN_ABS_X) return "detail";
+  if (cy > TURRET_MIN_Y) return "turret";
+  if (Math.abs(cx) > TRACKS_MIN_ABS_X) return "detail";
   return "hull";
 }
 
@@ -110,14 +112,14 @@ function classify(b) {
 export function buildModelTank(gltf) {
   const body = [], barrel = [];
   const pivot = toGame(MODEL_BARREL_PIVOT);
-  const stats = { hull: 0, detail: 0, barrel: 0 };
+  const stats = { hull: 0, turret: 0, detail: 0, barrel: 0 };
   for (const prim of gltf.primitives) {
     const { find, bbox } = connectedComponents(prim);
     const P = prim.positions, N = prim.normals, idx = prim.indices;
     for (let t = 0; t < idx.length; t += 3) {
       const part = classify(bbox.get(find(idx[t])));
       stats[part]++;
-      const color = part === "hull" ? TANK_HULL_COLOR : TANK_TURRET_COLOR;
+      const color = part === "hull" || part === "turret" ? TANK_BODY_COLOR : TANK_DETAIL_COLOR;
       const out = part === "barrel" ? barrel : body;
       const tri = [idx[t], idx[t+1], idx[t+2]];
       let flat = null;

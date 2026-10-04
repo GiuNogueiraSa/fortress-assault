@@ -12,10 +12,10 @@ import { buildBox } from "./geometry.js";
 export const TRENCH_SEGMENTS = 9;
 export const TRENCH_SPACING = 0.8;
 export const TRENCH_WIDTH = TRENCH_SEGMENTS * TRENCH_SPACING; // 7.2
-export const TRENCH_HEIGHT = 3.5;
+export const TRENCH_HEIGHT = 5.5;      // "paredão"
 export const TRENCH_DEPTH = 0.6;
 export const TRENCH_Z = -6;          // onde ficava o alvo original
-const COLORS = [[0.55, 0.47, 0.32], [0.46, 0.39, 0.26]]; // sacos de areia, tons alternados
+const COLORS = [[0.08, 0.12, 0.35], [0.07, 0.105, 0.31]]; // azul escuro, tom levemente alternado por segmento
 
 // Buracos: raio sorteado por impacto; até MAX_HOLES na lista do shader
 export const MAX_HOLES = 32;
@@ -26,7 +26,21 @@ export const TRENCH_REBUILD_DESTROYED = 0.6;
 
 // Entulho estático no chão, ao pé do buraco
 const RUBBLE_PER_HOLE_MIN = 4, RUBBLE_PER_HOLE_MAX = 8;
-export const RUBBLE_COLOR = [0.47, 0.40, 0.27];
+// Cores do material que voa/cai (o shader multiplica a cor base cinza 0.5 por
+// essas tintas): concreto azul, escuro, terra, vinho e verde
+export const DEBRIS_TINTS = [
+  { tint: [0.16, 0.24, 0.70], weight: 0.50 },
+  { tint: [0.12, 0.12, 0.14], weight: 0.20 },
+  { tint: [0.90, 0.72, 0.48], weight: 0.15 },
+  { tint: [1.00, 0.16, 0.30], weight: 0.10 },
+  { tint: [0.10, 0.40, 0.16], weight: 0.05 },
+];
+export function randomDebrisTint(rand = Math.random) {
+  let r = rand();
+  const pick = DEBRIS_TINTS.find(t => (r -= t.weight) < 0) || DEBRIS_TINTS[0];
+  const k = 0.7 + rand() * 0.5;   // mais claro / mais escuro
+  return pick.tint.map(c => c * k);
+}
 
 const LEFT = -TRENCH_WIDTH / 2;
 
@@ -118,7 +132,7 @@ export function rubbleForHole(center, radius, shotVel, rand = Math.random) {
   const behind = shotVel[2] < 0 ? -1 : 1;
   const pieces = [];
   for (let k = 0; k < n; k++) {
-    const size = 0.16 + rand() * 0.16;
+    const size = 0.10 + rand() * 0.12;
     const side = rand() < 0.6 ? behind : -behind;
     pieces.push({
       pos: [

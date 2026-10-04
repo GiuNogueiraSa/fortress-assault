@@ -7,8 +7,10 @@ prevendo a trajetória do tiro — e atira projéteis com física de gravidade r
 contra uma trincheira inimiga. Cada acerto explode (bola de fogo, onda de
 choque, destroços e tremor de câmera) e abre um buraco irregular no muro, com
 a borda queimada e entulho no chão (dá para atirar através dele); com mais de
-60% do muro destruído, uma trincheira nova aparece. Todos os objetos usam iluminação por pixel (Lambert +
-Blinn-Phong + luz de preenchimento, com variação de cor por ruído).
+60% do muro destruído, uma trincheira nova aparece. O cenário tem céu de fim de
+tarde com sol, e todos os objetos usam iluminação por pixel (Lambert +
+Blinn-Phong + preenchimento + ambiente) com padrões procedurais: estampa de
+onça no tanque, blocos de concreto com relevo no paredão.
 
 ## Como rodar localmente
 
@@ -49,6 +51,7 @@ src/gltf.js       loader mínimo de .glb (nós, posições, normais, UVs, índic
 src/lighting.js   iluminação por pixel de todos os opacos + recorte dos buracos da trincheira
 src/physics.js    movimento do tanque, disparo, física e previsão da trajetória
 src/aimLine.js    linha de mira (pipeline line-strip)
+src/sky.js        céu em gradiente com sol (triângulo em tela cheia)
 src/explosion.js  shader de explosão (WGSL), onda de choque e ruído compartilhado
 assets/models/    modelo 3D do tanque (tank.glb)
 ```
