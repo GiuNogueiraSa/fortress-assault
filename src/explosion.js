@@ -16,6 +16,8 @@
 //   - Índice das paletas limitado com clamp (no original podia sair do array).
 //   - `disp` e `oct_noise` removidos (disp = 0 por padrão; oct_noise não era usado).
 //   - Pixels com alpha 0 são descartados (`discard`), então não precisa de blending.
+//   - Paletas trocadas para fogo mais realista: núcleo amarelo/laranja, borda
+//     vermelho/marrom e fumaça marrom-escura (o original era roxo/rosado).
 
 // Layout do uniform buffer (112 bytes). vec3f ocupa 16 bytes de alinhamento,
 // por isso cada vec3f vem "colado" com um f32 para não sobrar buraco.
@@ -72,7 +74,8 @@ fn noise(p: vec3f) -> f32 {
 
 // Onda de choque: anel que se expande e some, desenhado no mesmo quadro
 // billboard da explosão (mesmo uniform buffer, com quadSize maior).
-export const SHOCKWAVE_DURATION = 0.4;  // mais curta = expansão mais rápida
+export const SHOCKWAVE_DURATION = 0.2;  // anel de 0.5 a 3 unidades em 0.2 s
+export const SHOCKWAVE_QUAD_SIZE = 8.0;  // lado do quad do anel (cobre raio 3)
 
 export const explosionShaderCode = /* wgsl */ `
 struct ExplosionUniforms {
@@ -193,9 +196,9 @@ fn posterize(v: f32, n: i32) -> f32 {
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4f {
   var boom_pal = array<vec3f, 4>(
-    vec3f(0.2, 0.15, 0.3), vec3f(0.9, 0.15, 0.05), vec3f(0.9, 0.5, 0.1), vec3f(0.95, 0.95, 0.35));
+    vec3f(0.32, 0.09, 0.04), vec3f(0.80, 0.18, 0.04), vec3f(1.0, 0.52, 0.08), vec3f(1.0, 0.88, 0.35));
   var smoke_pal = array<vec3f, 3>(
-    vec3f(0.2, 0.15, 0.3), vec3f(0.35, 0.3, 0.45), vec3f(0.5, 0.45, 0.6));
+    vec3f(0.20, 0.15, 0.13), vec3f(0.32, 0.26, 0.22), vec3f(0.45, 0.39, 0.34));
 
   let pos = (in.uv - vec2f(0.5, 0.4)) * SIZE;
 
@@ -226,17 +229,19 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
 // Anel de onda de choque (efeito próprio, não vem do shader original):
 // raio cresce rápido e desacelera (sqrt), fica mais largo e mais transparente.
 const SHOCK_DURATION = ${SHOCKWAVE_DURATION};
+const SHOCK_QUAD = ${SHOCKWAVE_QUAD_SIZE.toFixed(1)};
 @fragment
 fn fs_shockwave(in: VertexOut) -> @location(0) vec4f {
   let tt = u.time / SHOCK_DURATION;
   let d = length(in.uv - vec2f(0.5, 0.4));
-  let r = 0.4 * sqrt(tt);
-  let width = 0.015 + 0.04 * tt;
+  // raio em unidades de mundo: 0.5 -> 3, desacelerando (ease-out); em uv divide pelo quad
+  let r = (0.5 + 2.5 * (1.0 - (1.0 - tt) * (1.0 - tt))) / SHOCK_QUAD;
+  let width = (0.06 + 0.12 * tt) / SHOCK_QUAD;
   let ring = 1.0 - smoothstep(0.0, width, abs(d - r));
-  let a = ring * (1.0 - tt) * 0.4;    // mais sutil
+  let a = ring * (1.0 - tt) * 0.3;    // branco translúcido: alpha 0.3 -> 0
   if (tt >= 1.0 || a < 0.01) {
     discard;
   }
-  return vec4f(1.0, 0.92, 0.75, a);
+  return vec4f(1.0, 1.0, 1.0, a);
 }
 `;

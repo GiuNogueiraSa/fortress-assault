@@ -45,7 +45,8 @@ export function spawnProjectile(state) {
 }
 
 // Um passo de integração: gravidade real, sem curva "desenhada" — ela emerge da simulação.
-function stepProjectile(p, dt) {
+// (exportado: os destroços da explosão usam o mesmo passo)
+export function stepProjectile(p, dt) {
   p.vel[1] += GRAVITY * dt;
   p.pos[0] += p.vel[0] * dt;
   p.pos[1] += p.vel[1] * dt;

@@ -4,15 +4,21 @@ Jogo simples de tanque em 3D renderizado com **WebGPU** (trabalho de
 Computação Gráfica). O jogador controla um tanque (modelo 3D glTF, amarelo com
 estampa de onça) em terceira pessoa, ajusta a elevação do canhão com o mouse,
 com uma linha prevendo a trajetória do tiro, e atira projéteis com física de
-gravidade real contra uma **fortaleza** azul coberta de hera e flores.
+gravidade real contra um **castelo medieval** azul coberto de hera e flores:
+duas torres cilíndricas com ameias, muralhas e um portão em arco com passagem.
 
-Cada acerto explode (bola de fogo, onda de choque, lascas e tremor de câmera) e
-abre um buraco irregular na parede, com a borda queimada. O **portão** cai com 3
-tiros e o tanque pode entrar no **pátio**, onde a luz é amarela e quente. A
-fortaleza é reconstruída quando metade da fachada é destruída.
+Cada acerto explode, com:
+- bola de fogo que sobe;
+- onda de choque;
+- clarão de luz;
+- 40–60 lascas que caem, quicam e somem aos poucos;
+- tremor de câmera.
 
-O cenário tem céu com sol, e todos os objetos usam iluminação por pixel
-(Lambert + Blinn-Phong + preenchimento + ambiente) com padrões procedurais.
+O tiro também abre um buraco irregular na muralha. O portão cai com 3 tiros e
+o tanque pode entrar no pátio, iluminado por uma luz quente.
+
+O cenário tem céu com sol e nuvens, grama procedural e árvores. A cena usa
+iluminação por pixel com **sombras** (shadow map do sol).
 
 ## Como rodar localmente
 
@@ -52,13 +58,14 @@ index.html        página, HUD e estilos
 src/main.js       inicialização WebGPU, pipeline, entrada e loop do jogo
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)
 src/geometry.js   primitivas (caixa, cilindro, pedra irregular), chão e projétil
-src/trench.js     fortaleza: caixas, portão, pátio, buracos (recortados no shader) e colisões
+src/trench.js     castelo: torres, muralhas, portão em arco, pátio, buracos e colisões
 src/tank.js       tanque (modelo 3D ou caixas) e hierarquia chassi → torre → cano
 src/gltf.js       loader mínimo de .glb (nós, posições, normais, UVs, índices)
-src/lighting.js   iluminação por pixel, padrões procedurais (onça, hera, flores) e buracos
+src/lighting.js   iluminação, sombras (shadow map), padrões (onça, pedras, hera, grama) e buracos
 src/physics.js    movimento do tanque, disparo, física e previsão da trajetória
 src/aimLine.js    linha de mira (pipeline line-strip)
-src/sky.js        céu em gradiente com sol (triângulo em tela cheia)
+src/sky.js        céu em gradiente com sol e nuvens (triângulo em tela cheia)
+src/scenery.js    árvores de fundo
 src/explosion.js  shader de explosão (WGSL), onda de choque e ruído compartilhado
 assets/models/    modelo 3D do tanque (tank.glb)
 ```

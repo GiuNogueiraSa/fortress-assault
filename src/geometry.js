@@ -56,6 +56,43 @@ export function buildCylinderX(radius, length, center, color, segments) {
   return verts;
 }
 
+// Cilindro em pé (eixo Y) com normais SUAVES (interpoladas): parece redondo
+// mesmo com poucos lados. Inclui a tampa de cima.
+export function buildCylinderY(radius, height, center, color, sides = 24) {
+  const verts = [];
+  const [cx, cy, cz] = center;
+  for (let i = 0; i < sides; i++) {
+    const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+    const n0 = [Math.cos(a0), 0, Math.sin(a0)], n1 = [Math.cos(a1), 0, Math.sin(a1)];
+    const p = (n, y) => [cx + n[0] * radius, cy + y, cz + n[2] * radius];
+    const v = (pt, n) => verts.push(...pt, ...n, ...color);
+    // lateral: dois triângulos, cada vértice com a normal radial do seu ângulo
+    v(p(n0, 0), n0); v(p(n1, 0), n1); v(p(n1, height), n1);
+    v(p(n0, 0), n0); v(p(n1, height), n1); v(p(n0, height), n0);
+    // tampa
+    v([cx, cy + height, cz], [0, 1, 0]); v(p(n1, height), [0, 1, 0]); v(p(n0, height), [0, 1, 0]);
+  }
+  return verts;
+}
+// Esfera achatável (escala por eixo) com normais suaves: copas das árvores
+export function buildSphere(radius, center, color, scale = [1, 1, 1], rings = 10, segs = 16) {
+  const verts = [];
+  const pt = (r, s) => {
+    const th = (r / rings) * Math.PI, ph = (s / segs) * Math.PI * 2;
+    const n = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)];
+    const pos = n.map((c, k) => center[k] + c * radius * scale[k]);
+    const nn = n.map((c, k) => c / scale[k]); const l = Math.hypot(...nn) || 1;
+    return [pos, nn.map(c => c / l)];
+  };
+  for (let r = 0; r < rings; r++) {
+    for (let s = 0; s < segs; s++) {
+      const a = pt(r, s), b = pt(r + 1, s), c = pt(r + 1, s + 1), d = pt(r, s + 1);
+      for (const [pp, nn] of [a, b, c, a, c, d]) verts.push(...pp, ...nn, ...color);
+    }
+  }
+  return verts;
+}
+
 // ---------- Objetos do cenário ----------
 export function buildGround() {
   // 60x60: cobre também o pátio da fortaleza (que vai até z = -19)

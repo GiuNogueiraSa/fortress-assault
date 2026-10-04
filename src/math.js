@@ -44,6 +44,16 @@ export const mat4 = {
     const c = Math.cos(rad), s = Math.sin(rad);
     return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
   },
+  // Ortográfica no padrão do WebGPU (profundidade 0..1), olhando para -Z; usada na
+  // "câmera" do sol para o mapa de sombras
+  ortho(l, r, b, t, n, f) {
+    return new Float32Array([
+      2/(r-l), 0, 0, 0,
+      0, 2/(t-b), 0, 0,
+      0, 0, 1/(n-f), 0,
+      -(r+l)/(r-l), -(t+b)/(t-b), n/(n-f), 1,
+    ]);
+  },
   translation(tx, ty, tz) {
     return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, tx,ty,tz,1]);
   },

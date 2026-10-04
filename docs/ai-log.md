@@ -730,3 +730,112 @@ então esta é a 20.
   (fora da paleta) → amarelo do pátio menos saturado.
 - O céu (horizonte laranja) e o fogo da explosão (shader externo) não fazem
   parte da fortaleza e não foram alterados pela restrição de paleta.
+
+## 21. Castelo medieval, mundo mais realista, sombras e explosão nova — 04/10/2026 18:05
+
+**Prompt:** redesenhar a fortaleza e o mundo para parecerem realistas ("não
+Minecraft").
+- Castelo: duas torres cilíndricas de 12–15 com ameias, muralhas de ~10,
+  portão em arco com passagem de 1–1.5 de profundidade, largura ~20 e
+  profundidade ~8.
+- Hera em 30–50% e flores em ~5%.
+- Céu com sol grande e nuvens; grama, ondulação e musgo no chão; 3–5 árvores.
+- Sol quente, preenchimento azul e **sombras**.
+- Explosão: 40–60 partículas de 0.05–0.25 que somem aos poucos, anel branco
+  de 0.5 a 3 em 0.2 s, fogo laranja/amarelo que sobe, tremor de 0.15 s ±0.1
+  e clarão.
+- Pedia "entrada 18"; esta é a 21.
+
+**Antes de começar:** como a apresentação é amanhã, a versão anterior,
+estável, foi marcada com a tag git `v-estavel-fortaleza`
+(`git checkout v-estavel-fortaleza` volta para ela).
+
+**Feito:**
+- **Castelo (`trench.js`).**
+  - Duas torres **cilíndricas** (28 lados com normais suaves, raio 1.65,
+    altura 13.5 + ameias ≈ 14.3), com anel saliente perto do topo e 10
+    ameias em volta.
+  - Muralha frontal de 10 (largura 20), muralhas laterais e de fundo de 9,
+    ameias em toda a extensão e pátio de ~18 × 7.
+  - **Portão em arco:** pés-direitos de 1.75 + semicírculo (topo a 3.0,
+    largura 2.5). A malha sobre o vão é recortada em arco, com intradorso
+    (teto curvo) e uma passagem de 1.2 através da muralha. A folha do portão
+    tem o formato do arco e dobradiças amarelas.
+  - **Colisão:** o arco é recortado (tiro passa pelo vão, bate acima dele);
+    as torres usam colisão circular.
+- **Pedras (`fs_trench`):** alvenaria de pedras irregulares por **Voronoi 2D**
+  (juntas escuras pela diferença F2−F1). Cada pedra é abaulada na normal e
+  tem tom próprio. Nas torres a coordenada é ângulo × altura.
+- **Hera e flores:** a hera é mais densa nas torres e nos cantos, e as
+  flores ficam só sobre ela. A passagem do portão escurece até quase preto
+  no meio da espessura (sombra de profundidade).
+- **Sombras:** shadow map 2048² do sol (ortográfica), PCF 3×3 (borda
+  suave), depth bias contra "acne". Projetam sombra: tanque, castelo,
+  árvores, entulho e projéteis. Os buracos da muralha deixam a luz passar
+  (o passe de sombra também descarta os pixels dentro deles).
+- **Chão:** grama com variação clara/escura, fiapos, ondulação na normal,
+  musgo (0.05, 0.12, 0.05), brilho leve (orvalho) e escurecimento de
+  contato junto à base do castelo.
+- **Árvores (`src/scenery.js`):** 5 árvores (tronco cilíndrico + 3 esferas
+  achatadas de normais suaves), atrás e dos lados.
+- **Céu:** sol maior (~2.5°) com halo e nuvens procedurais douradas do lado
+  do sol.
+- **Luz.**
+  - Sol (1.0, 0.9, 0.7).
+  - Preenchimento azul (0.3, 0.4, 0.6) vindo de cima.
+  - Pedra com especular de "úmida" e cano com especular 1.2.
+  - Pátio com luz quente mais forte.
+- **Explosão.**
+  - 40–60 lascas de 0.05–0.25 (mais pequenas), mais horizontais, girando,
+    com a mesma física (`stepProjectile`). Quicam uma vez no chão e somem
+    aos poucos: o alpha vira cobertura das amostras do MSAA
+    (**alpha-to-coverage**), sem precisar ordenar transparências.
+  - Cores azul, verde e vermelho/rosa.
+  - Anel de choque branco (alpha 0.3 → 0), de 0.5 a 3 em 0.2 s.
+  - Fogo com núcleo amarelo/laranja e borda vermelha/marrom (paletas do
+    shader externo trocadas, documentado no cabeçalho), subindo 0.5/s.
+  - Tremor de 0.15 s ±0.1 no plano da tela, com decaimento quadrático.
+  - **Clarão:** luz pontual laranja por 0.12 s.
+
+**Arquivos:** `src/trench.js`, `src/lighting.js`, `src/scenery.js` (novo),
+`src/sky.js`, `src/explosion.js`, `src/geometry.js`, `src/math.js`
+(ortográfica WebGPU), `src/physics.js`, `src/main.js`, `index.html`,
+`README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- **Vistas de teste** (câmera movida só no teste: frente, lado e pátio):
+  torres, ameias, arco, árvores, nuvens e sombras.
+- **Cobertura medida na imagem:** hera 36% (meta 30–50%), flores 5.5% da
+  hera (meta ~5%).
+- **Portão:** 1/3 → 2/3 → derrubado. O tanque entra pelo arco, anda pelo
+  pátio até a parede lateral e o pátio aparece claro e quente.
+- **Explosão:** anel, fogo e fumaça; tremor só no impacto.
+- **Controles, plano B e fallback:** OK.
+- **Desempenho (navegador isolado por densidade):** DPR 1 → 60 fps;
+  1.5 → 57–60.
+
+**Problemas:**
+- **Hera:** cobria ~80% (torres quase todas verdes) → limiar e reforço nas
+  torres reduzidos. Ficou em 30% na 2ª tentativa e em 36% na 3ª.
+- **Musgo:** manchas grandes e escuras demais no chão → menos cobertura e
+  intensidade.
+- **Canteiro:** a 2.2 da muralha, a mesma medida do diâmetro do tanque; o
+  tanque entrava e ficava preso → canteiro mais para dentro do pátio.
+- **Pátio escuro:**
+  - com sombras reais, a muralha esquerda (9 de altura, sol a 35°) cobre a
+    maior parte do pátio → luz ambiente quente do pátio mais forte;
+  - além disso, o escurecimento de contato do chão usava a distância ao
+    castelo, que é **negativa dentro do pátio**, e escurecia o chão inteiro
+    → `abs()` da distância.
+- **Fogo cortado no portão:** com o tiro no portão (dentro da passagem), o
+  arco escondia a metade de cima da bola de fogo → ela também é puxada 0.8
+  na direção da câmera, como o anel.
+- **Desempenho em DPR 2:** 43–47 fps (sombras + castelo a 1800×1120 com
+  MSAA 4) → teto do devicePixelRatio de 2 para 1.5. Telas 2x renderizam a
+  1.5x: 58–60 fps.
+- **Fora do escopo:**
+  - profundidade de campo (opcional no pedido), para não arriscar o
+    desempenho na véspera;
+  - sol "no horizonte iluminando a fachada": impossível com ele à frente
+    (a fachada ficaria contra a luz). Ele vem de trás-esquerda, em luz
+    rasante, e aparece no horizonte quando o tanque vira para a esquerda.
