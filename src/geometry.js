@@ -58,7 +58,8 @@ export function buildCylinderX(radius, length, center, color, segments) {
 
 // ---------- Objetos do cenário ----------
 export function buildGround() {
-  return new Float32Array(buildBox(30, 0.2, 30, [0,-0.1,0], [0.16, 0.27, 0.15]));
+  // 60x60: cobre também o pátio da fortaleza (que vai até z = -19)
+  return new Float32Array(buildBox(60, 0.2, 60, [0,-0.1,0], [0.16, 0.27, 0.15]));
 }
 export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));

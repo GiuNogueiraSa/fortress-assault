@@ -1,16 +1,18 @@
 # Tanque 3D em WebGPU
 
 Jogo simples de tanque em 3D renderizado com **WebGPU** (trabalho de
-Computação Gráfica). O jogador controla um tanque (modelo 3D glTF) em
-terceira pessoa, ajusta a elevação do canhão com o mouse — com uma linha
-prevendo a trajetória do tiro — e atira projéteis com física de gravidade real
-contra uma trincheira inimiga. Cada acerto explode (bola de fogo, onda de
-choque, destroços e tremor de câmera) e abre um buraco irregular no muro, com
-a borda queimada e entulho no chão (dá para atirar através dele); com mais de
-60% do muro destruído, uma trincheira nova aparece. O cenário tem céu de fim de
-tarde com sol, e todos os objetos usam iluminação por pixel (Lambert +
-Blinn-Phong + preenchimento + ambiente) com padrões procedurais: estampa de
-onça no tanque, blocos de concreto com relevo no paredão.
+Computação Gráfica). O jogador controla um tanque (modelo 3D glTF, amarelo com
+estampa de onça) em terceira pessoa, ajusta a elevação do canhão com o mouse,
+com uma linha prevendo a trajetória do tiro, e atira projéteis com física de
+gravidade real contra uma **fortaleza** azul coberta de hera e flores.
+
+Cada acerto explode (bola de fogo, onda de choque, lascas e tremor de câmera) e
+abre um buraco irregular na parede, com a borda queimada. O **portão** cai com 3
+tiros e o tanque pode entrar no **pátio**, onde a luz é amarela e quente. A
+fortaleza é reconstruída quando metade da fachada é destruída.
+
+O cenário tem céu com sol, e todos os objetos usam iluminação por pixel
+(Lambert + Blinn-Phong + preenchimento + ambiente) com padrões procedurais.
 
 ## Como rodar localmente
 
@@ -40,6 +42,7 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 | Travar o mouse para mirar | Clique no canvas |
 | Elevação do cano | Mouse (cima / baixo) |
 | Atirar | Espaço |
+| Entrar na fortaleza | Derrube o portão (3 tiros) e dirija para dentro |
 | Liberar o mouse | Esc |
 
 ## Estrutura
@@ -49,10 +52,10 @@ index.html        página, HUD e estilos
 src/main.js       inicialização WebGPU, pipeline, entrada e loop do jogo
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)
 src/geometry.js   primitivas (caixa, cilindro, pedra irregular), chão e projétil
-src/trench.js     trincheira: segmentos, lista de buracos (recortados no shader) e colisão
+src/trench.js     fortaleza: caixas, portão, pátio, buracos (recortados no shader) e colisões
 src/tank.js       tanque (modelo 3D ou caixas) e hierarquia chassi → torre → cano
 src/gltf.js       loader mínimo de .glb (nós, posições, normais, UVs, índices)
-src/lighting.js   iluminação por pixel de todos os opacos + recorte dos buracos da trincheira
+src/lighting.js   iluminação por pixel, padrões procedurais (onça, hera, flores) e buracos
 src/physics.js    movimento do tanque, disparo, física e previsão da trajetória
 src/aimLine.js    linha de mira (pipeline line-strip)
 src/sky.js        céu em gradiente com sol (triângulo em tela cheia)

@@ -16,7 +16,9 @@ export function bodyForward(yaw) {
 // Controle clássico de tanque: A/D giram o corpo no próprio eixo, W/S andam
 // para frente/ré na direção do corpo. Os dois são aplicados no mesmo quadro,
 // independentes, então W+D (etc.) vira uma curva sem lógica especial.
-export function moveTank(state, keys, dt) {
+// blocked(x, z): opcional, diz se o tanque bateria em algo na posição (fortaleza).
+// Se o movimento completo bate, tenta cada eixo separado (desliza na parede).
+export function moveTank(state, keys, dt, blocked = null) {
   let turn = 0, drive = 0;
   if (keys.has("a")) turn += 1;   // yaw positivo gira para a esquerda
   if (keys.has("d")) turn -= 1;
@@ -24,8 +26,11 @@ export function moveTank(state, keys, dt) {
   if (keys.has("s")) drive -= 1;
   state.yaw += turn * TURN_SPEED * dt;
   const forward = bodyForward(state.yaw);
-  state.x += forward[0] * drive * MOVE_SPEED * dt;
-  state.z += forward[2] * drive * MOVE_SPEED * dt;
+  const nx = state.x + forward[0] * drive * MOVE_SPEED * dt;
+  const nz = state.z + forward[2] * drive * MOVE_SPEED * dt;
+  if (!blocked || !blocked(nx, nz)) { state.x = nx; state.z = nz; }
+  else if (!blocked(nx, state.z)) state.x = nx;
+  else if (!blocked(state.x, nz)) state.z = nz;
 }
 
 // Posição e velocidade iniciais do projétil, saindo da boca do cano.

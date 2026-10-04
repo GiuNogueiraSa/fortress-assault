@@ -626,3 +626,107 @@ muro marrom de 3.5, céu azul liso) depois das mudanças visuais da entrada 18.
 **Observação:** o navegador que já tinha os arquivos antigos em cache
 precisa de **um** recarregamento forçado (Ctrl+Shift+R / Ctrl+F5) ou ser
 reaberto. Daí em diante, cada recarregamento comum pega a versão atual.
+
+## 20. Fortaleza destrutível com pátio + realismo do tanque — 04/10/2026 17:22
+
+**Prompt:** (1) trocar o muro por uma fortaleza (parede frontal de 8–10, portão
+de 2.5 × 3, torres, detalhes) com um pátio interno de luz amarela e quente;
+(2) paleta só azul / verde (hera) / vermelho e rosa (flores) / amarelo mínimo /
+preto e branco muito pouco; (3) destroços azuis e verdes; (4) sol iluminando a
+parede, preenchimento azul claro; (6) tanque com as **mesmas cores**, mas com
+desgaste, mais especular no metal, sulcos nas esteiras, onça com mais contraste
+e cano com mais volume. O prompt pedia "entrada 18", mas 18 e 19 já existiam,
+então esta é a 20.
+
+**Feito:**
+- **Fortaleza (`trench.js` reescrito).**
+  - Parede frontal de 9 de altura (z = −9, 15.6 de largura) com vão de
+    portão de 2.5 × 3.
+  - Duas torres de guarda de 10.5 saindo 0.8 para fora, ameias no topo da
+    parede e das torres, e um friso horizontal saliente (desnível).
+  - Pátio de ~14 × 8 fechado por paredes laterais e de fundo (7.5), com um
+    canteiro no meio. O chão foi ampliado para 60 × 60.
+- **Portão.**
+  - Painel recuado com dobradiças e trinco amarelos (o único amarelo da
+    fortaleza além de flores raras).
+  - Cai com `DOOR_HP = 3` acertos. Os furos nele são só marcas (raio
+    menor): ele bloqueia tiros e tanque inteiro até cair.
+- **Colisão do tanque (nova):** círculo de raio 1.1 contra as caixas que
+  tocam o chão (`tankBlocked`). `moveTank` testa o movimento e, se bater,
+  tenta cada eixo separado (desliza na parede). Antes o tanque atravessava
+  tudo; agora o portão realmente impede a entrada.
+- **Buracos.**
+  - Cada um guarda a fatia de profundidade (zMin..zMax) da caixa atingida,
+    para não furar também a parede do fundo no mesmo x,y. O uniform passou a
+    ter 2 vec4 por buraco (até 40).
+  - O centro fica no meio da espessura da caixa atingida.
+  - Paredes laterais e o friso não aceitam buracos.
+  - Reconstrução com 50% da fachada destruída, e nunca com o tanque no vão
+    do portão (senão ele ficaria preso).
+- **Shader da fortaleza (`fs_trench`).**
+  - Blocos azuis (0.15, 0.25, 0.5) com chanfro na normal.
+  - Hera verde em manchas esticadas na vertical, mais densa embaixo, com
+    dois verdes e relevo de folhas.
+  - Flores vermelhas/rosas só sobre a hera (grade com jitter) e amarelo raro
+    (2,5% das flores).
+  - Queimado em preto. Saíram a franja vinho, as algas e o marrom.
+- **Pátio quente:** fora do pátio a luz não muda. Dentro dele (`yardWarmth`,
+  pela posição no mundo):
+  - o ambiente vira amarelo quente;
+  - o sol fica mais intenso;
+  - a borda da zona fica no meio da espessura das paredes, então a face
+    interna recebe a luz quente e a externa não;
+  - vale também para o tanque quando entra.
+- **Sol e ambiente.**
+  - O sol foi para **trás da câmera inicial** (azimute 150°, luz a 35°),
+    para iluminar a fachada de frente (ela olha para +Z). O disco do sol
+    aparece quando o tanque se vira.
+  - Preenchimento azul claro (luz do céu), vindo do lado oposto.
+  - Névoa começando mais longe (26), para não tingir a fortaleza com a cor
+    do horizonte.
+- **Destroços:** tintas só azul (65%) e verde (35%), com brilho variando.
+- **Tanque (cores iguais).**
+  - Desgaste: sujeira e tinta gasta como variação de brilho do mesmo
+    amarelo, mais forte perto do chão.
+  - Onça com bordas mais duras, anel mais largo e miolo mais escuro.
+  - Partes escuras (rodas, esteiras): estrias de alto contraste ao longo do
+    comprimento e especular forte.
+  - Cano: especular 1.0, brilho 80 e rim mais forte (mais volume
+    cilíndrico).
+  - Novo campo `look` (rim por material) no uniform (176 → 192 bytes).
+
+**Arquivos:** `src/trench.js`, `src/lighting.js`, `src/physics.js`,
+`src/geometry.js`, `src/main.js`, `index.html`, `README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- **Colisão do tanque (unitário):** com o portão fechado, para em
+  z = −8.14 (portão + raio); aberto, entra até o canteiro (z = −11.9);
+  dentro, a parede lateral o para em x = 5.88.
+- **Jogo, tiro baixo no portão:** "1/3", "2/3", "Portão derrubado!". O
+  tanque entra no pátio, a luz fica amarela lá dentro e os destroços saem
+  azuis e verdes.
+- **Paleta medida na imagem (região da fachada):** 49% azul, 46% verde
+  (hera), flores 6.2% da área de hera, amarelo 0.9%.
+- **Controles, plano B e fallback:** OK.
+- **Desempenho:** com um navegador isolado por densidade de tela, 60 fps em
+  DPR 1, 1.5 e 2, parado e atirando perto do muro.
+
+**Problemas:**
+- O 2º e o 3º tiros no portão passavam pelo buraco do 1º e acertavam o chão
+  do pátio → no portão os furos viraram só dano visual, e o portão bloqueia
+  até cair.
+- **Desempenho:** com a fachada cobrindo meia tela, o shader fazia ~11
+  gradient noise 3D por pixel. A medição deu ~39 fps em DPR 1.5 e ~25 em
+  DPR 2, mas feita com várias janelas no mesmo navegador, método que já
+  tinha falhado antes.
+  - Mesmo assim, otimizado: value noise 2D barato (4 hashes) nos padrões da
+    superfície, o gradient noise só na borda dos buracos, queimado só perto
+    deles, e sem a variação de cor genérica na fortaleza.
+  - Depois, medido com um navegador por densidade: 60 fps em todas.
+- A troca de ruído mudou a cobertura da hera (de 39% para 57% na 1ª
+  tentativa) → limiar ajustado pelo meio, medindo na imagem. As flores
+  estavam em 3.8% da hera → mais frequentes (6.2%).
+- Luz amarela forte sobre o azul deixava as paredes do pátio acinzentadas
+  (fora da paleta) → amarelo do pátio menos saturado.
+- O céu (horizonte laranja) e o fogo da explosão (shader externo) não fazem
+  parte da fortaleza e não foram alterados pela restrição de paleta.

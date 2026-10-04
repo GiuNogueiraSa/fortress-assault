@@ -4,6 +4,7 @@ import { buildGround, buildProjectile, buildRock, FLOATS_PER_VERTEX } from "./ge
 import {
   createTrench, resetTrench, trenchHitTest, holeCenter, addHole, trenchDestroyed, trenchFull,
   holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, randomDebrisTint,
+  tankBlocked, DOOR_HP,
 } from "./trench.js";
 import {
   buildBoxTank, buildModelTank, buildMuzzleFlash, setTankRig, barrelLength, tankModelMatrices,
@@ -166,8 +167,11 @@ async function main() {
   // Trincheira: segmentos simples (malha fixa) + lista de buracos num uniform
   // lido pelo fs_trench (src/trench.js e src/lighting.js).
   const trench = createTrench();
-  const isTrenchSolid = pos => trenchHitTest(trench, pos);
-  const trenchDrawable = makeDrawable(buildTrenchMesh(), MATERIALS.concrete);
+  const isTrenchSolid = pos => trenchHitTest(trench, pos) !== null;
+  const fortMesh = buildTrenchMesh(trench);
+  const trenchDrawable = makeDrawable(fortMesh.walls, MATERIALS.concrete);
+  const doorDrawable = makeDrawable(fortMesh.door, MATERIALS.concrete);   // some quando o portão cai
+  const isTankBlocked = (x, z) => tankBlocked(trench, x, z);
   const holesBuffer = device.createBuffer({
     size: HOLES_UNIFORM_BYTES,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -398,17 +402,27 @@ async function main() {
   const projectileEvents = {
     onHitTarget(p) {
       // buraco irregular onde o tiro atravessa, borda queimada, entulho no chão
-      const center = holeCenter(p.pos, p.vel);
-      const hole = addHole(trench, center);
+      const b = trenchHitTest(trench, p.pos);   // caixa atingida (parede, torre, portão…)
+      const center = holeCenter(p.pos, p.vel, b);
+      const { hole, doorFell } = addHole(trench, center, b);
       uploadHoles();
       trenchDamage = trenchDestroyed(trench);
-      spawnRubble(rubbleForHole(center, hole.r, p.vel));
+      if (hole) spawnRubble(rubbleForHole(center, hole.r, p.vel, b));
       spawnExplosion(p.pos);
       spawnDebris(p.pos, p.vel);
       shakeTime = SHAKE_DURATION;
-      setStatus(trenchDamage < TRENCH_REBUILD_DESTROYED && !trenchFull(trench)
-        ? `Impacto na trincheira! ${Math.round(trenchDamage * 100)}% destruída`
-        : "Trincheira destruída! Uma nova aparece em instantes", true);
+      if (doorFell) {
+        // o portão inteiro desaba: mais destroços e entulho no vão
+        spawnDebris([0, 1.5, trench.door.max[2]], p.vel);
+        spawnRubble(rubbleForHole([0, 1.5, 0], 1.4, p.vel, trench.door));
+        setStatus("Portão derrubado! Entre no pátio da fortaleza", true);
+      } else if (b.door) {
+        setStatus(`Portão atingido: ${trench.doorHits}/${DOOR_HP}`, true);
+      } else {
+        setStatus(trenchDamage < TRENCH_REBUILD_DESTROYED && !trenchFull(trench)
+          ? `Impacto na fortaleza! Fachada ${Math.round(trenchDamage * 100)}% destruída`
+          : "Fortaleza destruída! Uma nova aparece em instantes", true);
+      }
     },
     onHitGround() {
       setStatus("Impacto no chão", true);
@@ -443,7 +457,7 @@ async function main() {
     // também pega mudanças de tamanho que não disparam "resize" (layout, zoom)
     resizeRenderTargets();
 
-    moveTank(state, keys, dt);
+    moveTank(state, keys, dt, isTankBlocked);
     const forward = bodyForward(state.yaw);
 
     if (flashTimer > 0) flashTimer -= dt;
@@ -460,13 +474,17 @@ async function main() {
       if (explosions[i].age > EXPLOSION_DURATION) explosions.splice(i, 1);
     }
 
-    // Trincheira quase toda destruída: reconstrói depois que a última explosão acabar
-    if (explosions.length === 0 && (trenchDamage >= TRENCH_REBUILD_DESTROYED || trenchFull(trench))) {
+    // Fachada quase toda destruída: reconstrói depois que a última explosão
+    // acabar (e não enquanto o tanque estiver no vão do portão, senão prenderia)
+    const d0 = trench.door;
+    const tankInGate = state.x > d0.min[0] - 1.2 && state.x < d0.max[0] + 1.2 &&
+      state.z > d0.min[2] - 1.2 && state.z < d0.max[2] + 1.2;
+    if (explosions.length === 0 && !tankInGate && (trenchDamage >= TRENCH_REBUILD_DESTROYED || trenchFull(trench))) {
       resetTrench(trench);
       uploadHoles();
       trenchDamage = 0;
       rubble.length = 0;
-      setStatus("Nova trincheira inimiga!", true);
+      setStatus("Nova fortaleza inimiga!", true);
     }
 
     // Câmera em terceira pessoa, atrás do corpo do tanque, com tremor no impacto
@@ -499,6 +517,7 @@ async function main() {
       writeObject(muzzleFlash, mat4.multiply(models.barrel, mat4.translation(0, 0, -barrelLength())));
     }
     writeObject(trenchDrawable, identity); // malha já em coordenadas de mundo
+    writeObject(doorDrawable, identity);
     for (const p of projectiles) writeObject(projectilePool[p.slot], mat4.translation(...p.pos));
     for (const r of rubble) writeObject(rubblePool[r.slot], r.model, r.tint, r.pattern);
     for (const d of debris) {
@@ -555,6 +574,7 @@ async function main() {
     pass.setPipeline(trenchPipeline);
     pass.setBindGroup(1, holesBindGroup);
     drawObject(pass, trenchDrawable);
+    if (!trench.doorOpen) drawObject(pass, doorDrawable);
 
     // Depois dos opacos (trocam de pipeline): linha de mira, bolas de fogo e ondas de choque
     aimLine.draw(pass);
