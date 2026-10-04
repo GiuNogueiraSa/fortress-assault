@@ -478,3 +478,41 @@ usados nos que voam e nos que ficam no chão.
   visual e a colisão diferem um pouco. Também não há "parede interna" no
   buraco: a espessura do muro não aparece pela abertura, mas a faixa
   queimada disfarça.
+
+## 17. Análise comparativa Claude × Gemini × ChatGPT (conversão do shader) — 04/10/2026 16:18
+
+**Prompt:** ler `docs/Resposta 1 ChatGPT.txt` e `docs/Resposta 1 Gemini.txt`
+(respostas ao mesmo prompt de conversão do shader da entrada 3) e criar
+`docs/analise-ias.md`, com resumo executivo, comparação técnica, tabela rápida
+e conclusão.
+
+**Feito:**
+- Em vez de comparar só lendo, o WGSL de cada resposta foi extraído sem
+  alterações, compilado no Chrome e executado com os mesmos parâmetros, ao
+  lado do GLSL original (WebGL2), em 5 instantes. Foi medida a % de pixels
+  diferentes.
+- Resultado:
+  - Claude e ChatGPT: ≤ 0,03% de diferença;
+  - Gemini: 12–31% (metade do tamanho e sem contorno), e o `Float32Array`
+    da própria resposta é rejeitado pelo WebGPU (192 bytes para uma struct
+    de 208, por causa do alinhamento de `vec3`).
+- As afirmações das explicações foram checadas compilando trechos mínimos.
+  - Duas do Gemini são falsas: `1.` é literal válido, e array `let` aceita
+    índice dinâmico.
+  - Uma do Claude também é falsa: `repeat` e `point` não são palavras
+    reservadas; só `fn`.
+- O documento registra que foi escrito pelo Claude (uma das IAs comparadas)
+  e que as condições foram diferentes (o Claude tinha o repositório e
+  ferramentas; as outras, só o chat), além da limitação de ser uma única
+  tarefa.
+
+**Arquivos:** `docs/analise-ias.md` (novo), `docs/Resposta 1 ChatGPT.txt` e
+`docs/Resposta 1 Gemini.txt` (adicionados ao repositório como fonte da
+análise), `docs/ai-log.md`.
+
+**Problemas:**
+- Na primeira extração, o vertex shader do ChatGPT deu "unexpected token":
+  a faixa de linhas copiada incluía uma frase de texto no meio do código.
+  Era erro da extração, não da resposta → linha de prosa removida, e o
+  vertex compila.
+- O servidor local estava parado desde a sessão anterior → reiniciado.

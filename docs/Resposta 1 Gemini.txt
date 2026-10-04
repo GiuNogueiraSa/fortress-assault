@@ -1,0 +1,497 @@
+Tenho este shader de explosão, originalmente publicado no Shadertoy
+(https://www.shadertoy.com/view/X3dGz2), nesta versão portada para a
+engine Godot (https://godotshaders.com/shader/cartoon-explosion-effect/),
+licença Creative Commons BY-NC-SA 3.0:
+
+shader_type canvas_item;
+
+#define iTime TIME
+#define iResolution 1.0/SCREEN_PIXEL_SIZE
+#define fragColor COLOR
+
+uniform vec3 boom_pal1 = vec3(.2, .15, .3);
+uniform vec3 boom_pal2 = vec3(.9, .15, .05);
+uniform vec3 boom_pal3 = vec3(.9, .5, .1);
+uniform vec3 boom_pal4 = vec3(.95, .95, .35);
+
+uniform vec3 smoke_pal1 = vec3(.2, .15, .3);
+uniform vec3 smoke_pal2 = vec3(.35, .3, .45);
+uniform vec3 smoke_pal3 = vec3(.5, .45, .6);
+
+uniform float size : hint_range(0.1, 50.0, 0.1) = 5.;
+uniform float disperse : hint_range(0.1, 10.0, 0.1) = 1.;
+uniform float boom_repeat : hint_range(0.0, 10.0, 0.1) = 1.;
+uniform float boom_shape : hint_range(0.1, 20.0, 0.1) = 12.;
+uniform float boom_distortion : hint_range(0.0, 10.0, 0.1) = .5;
+uniform float boom_bubbles : hint_range(0.0, 10.0, 0.1) = .5;
+uniform float boom_bw : hint_range(0.0, 10.0, 0.1) = .5;
+
+uniform float smoke_repeat : hint_range(0.0, 10.0, 0.1) = 1.0;
+uniform float smoke_shape : hint_range(0.0, 30.0, 0.1) = 16.0;
+uniform float smoke_distortion : hint_range(0.0, 10.0, 0.1) = 1.5;
+uniform float smoke_bubbles : hint_range(0.0, 10.0, 0.1) = 0.5;
+uniform float smoke_bw : hint_range(0.0, 10.0, 0.1) = .75;
+
+uniform vec2 disp = vec2(0.0);
+
+vec3 n_rand3(vec3 p) {
+    vec3 r =
+        fract(
+            sin(
+                vec3(
+                    dot(p, vec3(127.1,311.7,371.8)),
+                    dot(p,vec3(269.5,183.3,456.1)),
+                    dot(p,vec3(352.5,207.3,198.67))
+                )
+            ) * 43758.5453
+        ) * 2.0 - 1.0;
+    return normalize(vec3(r.x/cos(r.x), r.y/cos(r.y), r.z/cos(r.z)));
+}
+
+float noise(vec3 p) {
+    vec3 fv = fract(p);
+    vec3 nv = vec3(floor(p));
+    vec3 u = fv*fv*fv*(fv*(fv*6.0-15.0)+10.0);
+    return (
+        mix(
+            mix(
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,0.0,0.0) ), fv-vec3(0.0,0.0,0.0)),
+                    dot( n_rand3( nv+vec3(1.0,0.0,0.0) ), fv-vec3(1.0,0.0,0.0)),
+                    u.x
+                ),
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,1.0,0.0) ), fv-vec3(0.0,1.0,0.0)),
+                    dot( n_rand3( nv+vec3(1.0,1.0,0.0) ), fv-vec3(1.0,1.0,0.0)),
+                    u.x
+                ),
+                u.y
+            ),
+            mix(
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,0.0,1.0) ), fv-vec3(0.0,0.0,1.0)),
+                    dot( n_rand3( nv+vec3(1.0,0.0,1.0) ), fv-vec3(1.0,0.0,1.0)),
+                    u.x
+                ),
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,1.0,1.0) ), fv-vec3(0.0,1.0,1.0)),
+                    dot( n_rand3( nv+vec3(1.0,1.0,1.0) ), fv-vec3(1.0,1.0,1.0)),
+                    u.x
+                ),
+                u.y
+            ),
+            u.z
+       )
+  );
+}
+
+float worley(vec3 s) {
+    vec3 si = floor(s);
+    vec3 sf = fract(s);
+    float m_dist = 1.;
+    for (int y= -1; y <= 1; y++) {
+        for (int x= -1; x <= 1; x++) {
+            for (int z= -1; z <= 1; z++) {
+                vec3 neighbor = vec3(float(x),float(y), float(z));
+                vec3 point = fract(n_rand3(si + neighbor));
+                point = 0.5 + 0.5*sin(disperse * iTime + 6.2831*point);
+                vec3 diff = neighbor + point - sf;
+                float dist = length(diff);
+                m_dist = min(m_dist, dist);
+            }
+        }
+    }
+    return m_dist;
+}
+
+float oct_noise(vec3 pos, float o) {
+    float ns = 0.0;
+    float d = 0.0;
+    int io = int(o);
+    float fo = fract(o);
+    for(int i=0;i<=io;++i) {
+        float v = pow(2.0,float(i));
+        d += 1.0/v;
+        ns += noise(pos*v)*(1.0/v);
+    }
+    float v = pow(2.0,float(io+1));
+    d+= 1.0*fo/v;
+    ns += noise(pos*v)*(1.0*fo/v);
+    return ns/d;
+}
+
+float boom (vec2 p) {
+    float repeat = mod(iTime * boom_repeat, 2.);
+    float shape = 1.-pow(distance(vec3(p, 0.), vec3(0.)),2.) / (repeat*boom_shape) - repeat*2.;
+    float distortion = noise(vec3(p*boom_distortion, iTime*.5));
+    float bubbles = boom_bubbles-pow(worley(vec3(p*1.2,iTime*2.)), 3.);
+    float bw = boom_bw;
+    float effects = (bw * bubbles + (1.-bw) * distortion);
+    return shape + effects;
+}
+
+float smoke (vec2 p) {
+    float repeat = mod(iTime * smoke_repeat, 2.);
+    float shape = 1.-pow(distance(vec3(p - vec2(0, 2) * pow(repeat/1.45,2.)*1.5, 0.), vec3(0.)),2.) / (repeat* smoke_shape) - pow(repeat*1.5,.5);
+    float distortion = noise(vec3(p*smoke_distortion - vec2(0, 2) * pow(repeat/1.45,2.)*1.5, iTime*.1));
+    float bubbles = smoke_bubbles-pow(worley(vec3((p/pow(repeat,.35)) - vec2(0, 2) * pow(repeat/1.65,2.)*1.5, iTime*.1)), 2.);
+    float bw = smoke_bw;
+    float effects = (bw * bubbles + (1.-bw) * distortion);
+    return shape + effects;
+}
+
+float f (vec2 p){
+    float b = boom(p);
+    float s = smoke(p);
+    return b > s ? b : s;
+}
+
+vec2 grad( vec2 x ) {
+    vec2 h = vec2( 0.01, 0.0 );
+    return vec2( f(x+h.xy) - f(x-h.xy),
+                 f(x+h.yx) - f(x-h.yx) )/(2.0*h.x);
+}
+
+float border (vec2 uv) {
+    float b = f( uv );
+    vec2  g = grad( uv );
+    float de = abs(b)/length(g);
+    float eps = .01;
+    return smoothstep( 1.0*eps, 2.0*eps, de );
+}
+
+float posterize(float v, int n) {
+    float fn = float(n);
+    return floor(v*fn)/(fn-1.);
+}
+
+void fragment() {
+    vec3 boom_pal[4] = { boom_pal1, boom_pal2, boom_pal3, boom_pal4 };
+    vec3 smoke_pal[] = { smoke_pal1, smoke_pal2, smoke_pal3 };
+
+    vec2 uv = SCREEN_UV;
+    uv.y = 1.0 -uv.y;
+    vec2 pos = uv - vec2(.5, .4);
+    pos.x /= SCREEN_PIXEL_SIZE.x / SCREEN_PIXEL_SIZE.y;
+    pos *= 1. * size;
+    pos = pos - disp;
+
+    int bpl = boom_pal.length();
+    int spl = smoke_pal.length();
+
+    float boom_val = boom(pos);
+    float boom_a = step(0., boom_val);
+    vec3 boom_col = boom_pal[int(posterize(boom_val, bpl)*float(bpl))] - vec3(1.-boom_a);
+
+    float smoke_val = smoke(pos);
+    float smoke_a = step(0., smoke_val);
+    vec3 smoke_col = smoke_pal[int(posterize(smoke_val, spl)*float(spl))] - vec3(1.-smoke_a);
+
+    float b = step(1.,border(pos));
+    float bw = step(smoke_val*1.25, boom_val);
+
+    vec3 color = bw * boom_col + (1.-bw) * smoke_col;
+    float alpha = bw * boom_a + (1.-bw) * smoke_a;
+
+    vec4 result = vec4(alpha == 1. ? color : vec3(0.5), alpha) - vec4(vec3(1.-b), 1.);
+    fragColor = vec4(result.rgb, alpha);
+}
+
+IMPORTANTE: esse código é uma versão portada para a engine Godot, então
+tem sintaxe específica dela (SCREEN_UV, SCREEN_PIXEL_SIZE, a anotação
+": hint_range(...)" nos uniforms, TIME). Ignore essas partes específicas
+do Godot e trate como o shader Shadertoy original: uma função de
+fragmento que recebe uma coordenada 2D (equivalente a "pos" aqui) e o
+tempo decorrido, e devolve uma cor RGBA de explosão animada.
+
+Preciso adaptar esse shader para WGSL (linguagem de shaders do WebGPU),
+para usar como efeito de explosão num jogo 3D, aplicado sobre um quad
+voltado para a câmera, posicionado no ponto de impacto de um projétil.
+
+Por favor:
+1. Converta para WGSL, removendo as partes específicas do Godot e
+   mantendo o efeito visual (a "bola de fogo com fumaça") o mais
+   parecido possível.
+2. Explique as principais mudanças de sintaxe/conceito entre GLSL e
+   WGSL que foram necessárias (tipos, uniforms, arrays, funções
+   built-in diferentes).
+3. Indique como eu passaria o tempo decorrido e a posição do impacto
+   como uniforms dentro de uma aplicação WebGPU em JavaScript.
+
+Resposta do Gemini:
+Aqui está a adaptação completa do shader para WGSL (WebGPU Shading Language), junto com a explicação detalhada das diferenças técnicas e do código JavaScript/WebGPU para envio dos dados.
+
+1. Código WGSL Convertido
+Nesta versão para WGSL, transformamos as variáveis globais e uniforms em uma struct vinculada a um Uniform Buffer (@group(0) @binding(0)), convertemos todas as funções matemáticas para a sintaxe estrita da linguagem e definimos os atributos do Fragment Shader.
+
+Snippet de código
+struct ExplosionUniforms {
+    time: f32,
+    size: f32,
+    disperse: f32,
+    boom_repeat: f32,
+    boom_shape: f32,
+    boom_distortion: f32,
+    boom_bubbles: f32,
+    boom_bw: f32,
+    smoke_repeat: f32,
+    smoke_shape: f32,
+    smoke_distortion: f32,
+    smoke_bubbles: f32,
+    smoke_bw: f32,
+    _padding: vec3<f32>, // Alinhamento de memória para WebGPU (16-byte alignment)
+    boom_pal1: vec3<f32>, _pad1: f32,
+    boom_pal2: vec3<f32>, _pad2: f32,
+    boom_pal3: vec3<f32>, _pad3: f32,
+    boom_pal4: vec3<f32>, _pad4: f32,
+    smoke_pal1: vec3<f32>, _pad5: f32,
+    smoke_pal2: vec3<f32>, _pad6: f32,
+    smoke_pal3: vec3<f32>, _pad7: f32,
+    disp: vec2<f32>,
+    _pad8: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> u: ExplosionUniforms;
+
+fn n_rand3(p: vec3<f32>) -> vec3<f32> {
+    let d1 = dot(p, vec3<f32>(127.1, 311.7, 371.8));
+    let d2 = dot(p, vec3<f32>(269.5, 183.3, 456.1));
+    let d3 = dot(p, vec3<f32>(352.5, 207.3, 198.67));
+    
+    let r = (fract(sin(vec3<f32>(d1, d2, d3)) * 43758.5453) * 2.0 - 1.0);
+    return normalize(vec3<f32>(r.x / cos(r.x), r.y / cos(r.y), r.z / cos(r.z)));
+}
+
+fn noise(p: vec3<f32>) -> f32 {
+    let fv = fract(p);
+    let nv = floor(p);
+    let u_vec = fv * fv * fv * (fv * (fv * 6.0 - 15.0) + 10.0);
+
+    let d000 = dot(n_rand3(nv + vec3<f32>(0.0, 0.0, 0.0)), fv - vec3<f32>(0.0, 0.0, 0.0));
+    let d100 = dot(n_rand3(nv + vec3<f32>(1.0, 0.0, 0.0)), fv - vec3<f32>(1.0, 0.0, 0.0));
+    let d010 = dot(n_rand3(nv + vec3<f32>(0.0, 1.0, 0.0)), fv - vec3<f32>(0.0, 1.0, 0.0));
+    let d110 = dot(n_rand3(nv + vec3<f32>(1.0, 1.0, 0.0)), fv - vec3<f32>(1.0, 1.0, 0.0));
+    let d001 = dot(n_rand3(nv + vec3<f32>(0.0, 0.0, 1.0)), fv - vec3<f32>(0.0, 0.0, 1.0));
+    let d101 = dot(n_rand3(nv + vec3<f32>(1.0, 0.0, 1.0)), fv - vec3<f32>(1.0, 0.0, 1.0));
+    let d011 = dot(n_rand3(nv + vec3<f32>(0.0, 1.0, 1.0)), fv - vec3<f32>(0.0, 1.0, 1.0));
+    let d111 = dot(n_rand3(nv + vec3<f32>(1.0, 1.0, 1.0)), fv - vec3<f32>(1.0, 1.0, 1.0));
+
+    let m0 = mix(mix(d000, d100, u_vec.x), mix(d010, d110, u_vec.x), u_vec.y);
+    let m1 = mix(mix(d001, d101, u_vec.x), mix(d011, d111, u_vec.x), u_vec.y);
+
+    return mix(m0, m1, u_vec.z);
+}
+
+fn worley(s: vec3<f32>) -> f32 {
+    let si = floor(s);
+    let sf = fract(s);
+    var m_dist = 1.0;
+
+    for (var y = -1; y <= 1; y++) {
+        for (var x = -1; x <= 1; x++) {
+            for (var z = -1; z <= 1; z++) {
+                let neighbor = vec3<f32>(f32(x), f32(y), f32(z));
+                var point = fract(n_rand3(si + neighbor));
+                point = 0.5 + 0.5 * sin(u.disperse * u.time + 6.2831 * point);
+                let diff = neighbor + point - sf;
+                let dist = length(diff);
+                m_dist = min(m_dist, dist);
+            }
+        }
+    }
+    return m_dist;
+}
+
+fn boom(p: vec2<f32>) -> f32 {
+    let repeat = u.time * u.boom_repeat % 2.0;
+    let shape = 1.0 - pow(distance(vec3<f32>(p, 0.0), vec3<f32>(0.0)), 2.0) / (repeat * u.boom_shape) - repeat * 2.0;
+    let distortion = noise(vec3<f32>(p * u.boom_distortion, u.time * 0.5));
+    let bubbles = u.boom_bubbles - pow(worley(vec3<f32>(p * 1.2, u.time * 2.0)), 3.0);
+    let bw = u.boom_bw;
+    let effects = (bw * bubbles + (1.0 - bw) * distortion);
+    return shape + effects;
+}
+
+fn smoke(p: vec2<f32>) -> f32 {
+    let repeat = u.time * u.smoke_repeat % 2.0;
+    let shift = vec2<f32>(0.0, 2.0) * pow(repeat / 1.45, 2.0) * 1.5;
+    
+    let shape = 1.0 - pow(distance(vec3<f32>(p - shift, 0.0), vec3<f32>(0.0)), 2.0) / (repeat * u.smoke_shape) - pow(repeat * 1.5, 0.5);
+    let distortion = noise(vec3<f32>(p * u.smoke_distortion - shift, u.time * 0.1));
+    let bubbles = u.smoke_bubbles - pow(worley(vec3<f32>((p / pow(repeat, 0.35)) - vec2<f32>(0.0, 2.0) * pow(repeat / 1.65, 2.0) * 1.5, u.time * 0.1)), 2.0);
+    let bw = u.smoke_bw;
+    let effects = (bw * bubbles + (1.0 - bw) * distortion);
+    return shape + effects;
+}
+
+fn f(p: vec2<f32>) -> f32 {
+    let b = boom(p);
+    let s = smoke(p);
+    return select(s, b, b > s);
+}
+
+fn grad(x: vec2<f32>) -> vec2<f32> {
+    let h = vec2<f32>(0.01, 0.0);
+    return vec2<f32>(
+        f(x + h.xy) - f(x - h.xy),
+        f(x + h.yx) - f(x - h.yx)
+    ) / (2.0 * h.x);
+}
+
+fn border(uv: vec2<f32>) -> f32 {
+    let b = f(uv);
+    let g = grad(uv);
+    let de = abs(b) / length(g);
+    let eps = 0.01;
+    return smoothstep(1.0 * eps, 2.0 * eps, de);
+}
+
+fn posterize(v: f32, n: i32) -> f32 {
+    let fn_val = f32(n);
+    return floor(v * fn_val) / (fn_val - 1.0);
+}
+
+struct FragmentInput {
+    @location(0) uv: vec2<f32>,
+};
+
+@fragment
+fn main(in: FragmentInput) -> @location(0) vec4<f32> {
+    // Normalização da coordenada do Quad 2D (variando de -1.0 a 1.0 no quad)
+    var pos = (in.uv - vec2<f32>(0.5)) * 2.0 * u.size - u.disp;
+
+    let boom_val = boom(pos);
+    let boom_a = step(0.0, boom_val);
+    
+    // Indexação manual de cores da paleta de fogo
+    let idx_b = clamp(i32(posterize(boom_val, 4) * 4.0), 0, 3);
+    var boom_col: vec3<f32>;
+    switch (idx_b) {
+        case 0: { boom_col = u.boom_pal1; }
+        case 1: { boom_col = u.boom_pal2; }
+        case 2: { boom_col = u.boom_pal3; }
+        default: { boom_col = u.boom_pal4; }
+    }
+    boom_col -= vec3<f32>(1.0 - boom_a);
+
+    let smoke_val = smoke(pos);
+    let smoke_a = step(0.0, smoke_val);
+    
+    // Indexação manual de cores da paleta de fumaça
+    let idx_s = clamp(i32(posterize(smoke_val, 3) * 3.0), 0, 2);
+    var smoke_col: vec3<f32>;
+    switch (idx_s) {
+        case 0: { smoke_col = u.smoke_pal1; }
+        case 1: { smoke_col = u.smoke_pal2; }
+        default: { smoke_col = u.smoke_pal3; }
+    }
+    smoke_col -= vec3<f32>(1.0 - smoke_a);
+
+    let b = step(1.0, border(pos));
+    let bw = step(smoke_val * 1.25, boom_val);
+
+    let color = mix(smoke_col, boom_col, bw);
+    let alpha = mix(smoke_a, boom_a, bw);
+
+    let base_rgb = select(vec3<f32>(0.5), color, alpha == 1.0);
+    let result_rgb = base_rgb - vec3<f32>(1.0 - b);
+
+    // Retorna a cor RGBA com transparência pronta para blending no ecossistema 3D
+    return vec4<f32>(result_rgb, alpha * b);
+}
+2. Principais Mudanças de GLSL para WGSL
+Tipagem e Conversões Estritas: WGSL não realiza coerção de tipos oculta.
+
+Literais flutuantes exigem ponto decimal (1.0 em vez de 1.).
+
+Operações entre f32 e i32 precisam de chamadas explícitas como f32(inteiro).
+
+Construtores de vetores usam sintaxe genérica: vec3<f32>(0.0) em vez de vec3(0.0).
+
+Gerenciamento de Uniforms e Struct Padding (Layout de Memória):
+
+WGSL exige declarar uniforms dentro de blocos definidos (struct) ligados a @group() e @binding().
+
+A especificação da WebGPU exige alinhamento rígido para vec3<f32> (múltiplos de 16 bytes). Adicionamos variáveis de padding (_pad) no uniform buffer para garantir que os bytes no JavaScript correspondam exatamente à memória na GPU.
+
+Substituição de Módulos e Funções Internas:
+
+O operador GLSL mod(a, b) é substituído pelo operador % do WGSL (a % b).
+
+A instrução condicional ternária (cond ? a : b) foi alterada para a função embutida select(falso, verdadeiro, condicao).
+
+Arrays Dinâmicos vs. Chaveamento por switch:
+
+WGSL impõe restrições na indexação dinâmica de arrays locais usando variáveis. Para contornar a limitação de compatibilidade na busca de cores pelas paletas, utilizamos blocos switch para mapear os índices calculados diretamente nos membros da struct de uniform.
+
+3. Integração com JavaScript / WebGPU
+Para controlar o efeito, você deve criar um GPUBuffer contendo os parâmetros configurados e a posição/tempo do efeito, enviando-o à GPU a cada quadro (frame loop).
+
+JavaScript
+// 1. Definição dos valores padrão no JavaScript
+const explosionData = new Float32Array([
+  // time, size, disperse, boom_repeat
+  0.0, 5.0, 1.0, 1.0,
+  // boom_shape, boom_distortion, boom_bubbles, boom_bw
+  12.0, 0.5, 0.5, 0.5,
+  // smoke_repeat, smoke_shape, smoke_distortion, smoke_bubbles
+  1.0, 16.0, 1.5, 0.5,
+  // smoke_bw, padding[0], padding[1], padding[2]
+  0.75, 0.0, 0.0, 0.0,
+  // boom_pal1 (vec3) + pad1
+  0.2, 0.15, 0.3, 0.0,
+  // boom_pal2 (vec3) + pad2
+  0.9, 0.15, 0.05, 0.0,
+  // boom_pal3 (vec3) + pad3
+  0.9, 0.5, 0.1, 0.0,
+  // boom_pal4 (vec3) + pad4
+  0.95, 0.95, 0.35, 0.0,
+  // smoke_pal1 (vec3) + pad5
+  0.2, 0.15, 0.3, 0.0,
+  // smoke_pal2 (vec3) + pad6
+  0.35, 0.3, 0.45, 0.0,
+  // smoke_pal3 (vec3) + pad7
+  0.5, 0.45, 0.6, 0.0,
+  // disp (vec2) + pad8 (vec2)
+  0.0, 0.0, 0.0, 0.0,
+]);
+
+// 2. Alocação do Buffer na GPU
+const uniformBuffer = device.createBuffer({
+  size: explosionData.byteLength,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+
+// 3. Atualização no loop de animação (render loop)
+let startTime = performance.now();
+
+function frame() {
+  const currentTime = (performance.now() - startTime) / 1000.0; // tempo em segundos
+
+  // Atualiza a posição de deslocamento (impacto) e tempo no array
+  explosionData[0] = currentTime; // Índice 0 = u.time
+  
+  // Se o ponto de impacto se mover no espaço UV:
+  // explosionData[44] = impactX; 
+  // explosionData[45] = impactY;
+
+  // Envia os dados atualizados para a GPU
+  device.queue.writeBuffer(
+    uniformBuffer,
+    0,
+    explosionData.buffer,
+    explosionData.byteOffset,
+    explosionData.byteLength
+  );
+
+  // ... executar a render pass da WebGPU ...
+  requestAnimationFrame(frame);
+}
+Dica para o Quad Billboard 3D
+Como o seu objetivo é colocar a explosão no Ponto de Impacto 3D de um projétil:
+
+Posicione a malha de quad 2D no local 3D da colisão.
+
+Orienta os vértices do Quad usando uma matriz de Billboard (Face Camera), garantindo que a normal do plano fique sempre apontada para a câmera.
+
+Configure o estado de transparência da Pipeline da WebGPU para blend: { color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' } }, garantindo que o plano transparente não oculte a cena ao redor.

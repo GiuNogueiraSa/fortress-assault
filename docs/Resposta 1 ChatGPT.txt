@@ -1,0 +1,1308 @@
+Tenho este shader de explosão, originalmente publicado no Shadertoy
+(https://www.shadertoy.com/view/X3dGz2), nesta versão portada para a
+engine Godot (https://godotshaders.com/shader/cartoon-explosion-effect/),
+licença Creative Commons BY-NC-SA 3.0:
+
+shader_type canvas_item;
+
+#define iTime TIME
+#define iResolution 1.0/SCREEN_PIXEL_SIZE
+#define fragColor COLOR
+
+uniform vec3 boom_pal1 = vec3(.2, .15, .3);
+uniform vec3 boom_pal2 = vec3(.9, .15, .05);
+uniform vec3 boom_pal3 = vec3(.9, .5, .1);
+uniform vec3 boom_pal4 = vec3(.95, .95, .35);
+
+uniform vec3 smoke_pal1 = vec3(.2, .15, .3);
+uniform vec3 smoke_pal2 = vec3(.35, .3, .45);
+uniform vec3 smoke_pal3 = vec3(.5, .45, .6);
+
+uniform float size : hint_range(0.1, 50.0, 0.1) = 5.;
+uniform float disperse : hint_range(0.1, 10.0, 0.1) = 1.;
+uniform float boom_repeat : hint_range(0.0, 10.0, 0.1) = 1.;
+uniform float boom_shape : hint_range(0.1, 20.0, 0.1) = 12.;
+uniform float boom_distortion : hint_range(0.0, 10.0, 0.1) = .5;
+uniform float boom_bubbles : hint_range(0.0, 10.0, 0.1) = .5;
+uniform float boom_bw : hint_range(0.0, 10.0, 0.1) = .5;
+
+uniform float smoke_repeat : hint_range(0.0, 10.0, 0.1) = 1.0;
+uniform float smoke_shape : hint_range(0.0, 30.0, 0.1) = 16.0;
+uniform float smoke_distortion : hint_range(0.0, 10.0, 0.1) = 1.5;
+uniform float smoke_bubbles : hint_range(0.0, 10.0, 0.1) = 0.5;
+uniform float smoke_bw : hint_range(0.0, 10.0, 0.1) = .75;
+
+uniform vec2 disp = vec2(0.0);
+
+vec3 n_rand3(vec3 p) {
+    vec3 r =
+        fract(
+            sin(
+                vec3(
+                    dot(p, vec3(127.1,311.7,371.8)),
+                    dot(p,vec3(269.5,183.3,456.1)),
+                    dot(p,vec3(352.5,207.3,198.67))
+                )
+            ) * 43758.5453
+        ) * 2.0 - 1.0;
+    return normalize(vec3(r.x/cos(r.x), r.y/cos(r.y), r.z/cos(r.z)));
+}
+
+float noise(vec3 p) {
+    vec3 fv = fract(p);
+    vec3 nv = vec3(floor(p));
+    vec3 u = fv*fv*fv*(fv*(fv*6.0-15.0)+10.0);
+    return (
+        mix(
+            mix(
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,0.0,0.0) ), fv-vec3(0.0,0.0,0.0)),
+                    dot( n_rand3( nv+vec3(1.0,0.0,0.0) ), fv-vec3(1.0,0.0,0.0)),
+                    u.x
+                ),
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,1.0,0.0) ), fv-vec3(0.0,1.0,0.0)),
+                    dot( n_rand3( nv+vec3(1.0,1.0,0.0) ), fv-vec3(1.0,1.0,0.0)),
+                    u.x
+                ),
+                u.y
+            ),
+            mix(
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,0.0,1.0) ), fv-vec3(0.0,0.0,1.0)),
+                    dot( n_rand3( nv+vec3(1.0,0.0,1.0) ), fv-vec3(1.0,0.0,1.0)),
+                    u.x
+                ),
+                mix(
+                    dot( n_rand3( nv+vec3(0.0,1.0,1.0) ), fv-vec3(0.0,1.0,1.0)),
+                    dot( n_rand3( nv+vec3(1.0,1.0,1.0) ), fv-vec3(1.0,1.0,1.0)),
+                    u.x
+                ),
+                u.y
+            ),
+            u.z
+       )
+  );
+}
+
+float worley(vec3 s) {
+    vec3 si = floor(s);
+    vec3 sf = fract(s);
+    float m_dist = 1.;
+    for (int y= -1; y <= 1; y++) {
+        for (int x= -1; x <= 1; x++) {
+            for (int z= -1; z <= 1; z++) {
+                vec3 neighbor = vec3(float(x),float(y), float(z));
+                vec3 point = fract(n_rand3(si + neighbor));
+                point = 0.5 + 0.5*sin(disperse * iTime + 6.2831*point);
+                vec3 diff = neighbor + point - sf;
+                float dist = length(diff);
+                m_dist = min(m_dist, dist);
+            }
+        }
+    }
+    return m_dist;
+}
+
+float oct_noise(vec3 pos, float o) {
+    float ns = 0.0;
+    float d = 0.0;
+    int io = int(o);
+    float fo = fract(o);
+    for(int i=0;i<=io;++i) {
+        float v = pow(2.0,float(i));
+        d += 1.0/v;
+        ns += noise(pos*v)*(1.0/v);
+    }
+    float v = pow(2.0,float(io+1));
+    d+= 1.0*fo/v;
+    ns += noise(pos*v)*(1.0*fo/v);
+    return ns/d;
+}
+
+float boom (vec2 p) {
+    float repeat = mod(iTime * boom_repeat, 2.);
+    float shape = 1.-pow(distance(vec3(p, 0.), vec3(0.)),2.) / (repeat*boom_shape) - repeat*2.;
+    float distortion = noise(vec3(p*boom_distortion, iTime*.5));
+    float bubbles = boom_bubbles-pow(worley(vec3(p*1.2,iTime*2.)), 3.);
+    float bw = boom_bw;
+    float effects = (bw * bubbles + (1.-bw) * distortion);
+    return shape + effects;
+}
+
+float smoke (vec2 p) {
+    float repeat = mod(iTime * smoke_repeat, 2.);
+    float shape = 1.-pow(distance(vec3(p - vec2(0, 2) * pow(repeat/1.45,2.)*1.5, 0.), vec3(0.)),2.) / (repeat* smoke_shape) - pow(repeat*1.5,.5);
+    float distortion = noise(vec3(p*smoke_distortion - vec2(0, 2) * pow(repeat/1.45,2.)*1.5, iTime*.1));
+    float bubbles = smoke_bubbles-pow(worley(vec3((p/pow(repeat,.35)) - vec2(0, 2) * pow(repeat/1.65,2.)*1.5, iTime*.1)), 2.);
+    float bw = smoke_bw;
+    float effects = (bw * bubbles + (1.-bw) * distortion);
+    return shape + effects;
+}
+
+float f (vec2 p){
+    float b = boom(p);
+    float s = smoke(p);
+    return b > s ? b : s;
+}
+
+vec2 grad( vec2 x ) {
+    vec2 h = vec2( 0.01, 0.0 );
+    return vec2( f(x+h.xy) - f(x-h.xy),
+                 f(x+h.yx) - f(x-h.yx) )/(2.0*h.x);
+}
+
+float border (vec2 uv) {
+    float b = f( uv );
+    vec2  g = grad( uv );
+    float de = abs(b)/length(g);
+    float eps = .01;
+    return smoothstep( 1.0*eps, 2.0*eps, de );
+}
+
+float posterize(float v, int n) {
+    float fn = float(n);
+    return floor(v*fn)/(fn-1.);
+}
+
+void fragment() {
+    vec3 boom_pal[4] = { boom_pal1, boom_pal2, boom_pal3, boom_pal4 };
+    vec3 smoke_pal[] = { smoke_pal1, smoke_pal2, smoke_pal3 };
+
+    vec2 uv = SCREEN_UV;
+    uv.y = 1.0 -uv.y;
+    vec2 pos = uv - vec2(.5, .4);
+    pos.x /= SCREEN_PIXEL_SIZE.x / SCREEN_PIXEL_SIZE.y;
+    pos *= 1. * size;
+    pos = pos - disp;
+
+    int bpl = boom_pal.length();
+    int spl = smoke_pal.length();
+
+    float boom_val = boom(pos);
+    float boom_a = step(0., boom_val);
+    vec3 boom_col = boom_pal[int(posterize(boom_val, bpl)*float(bpl))] - vec3(1.-boom_a);
+
+    float smoke_val = smoke(pos);
+    float smoke_a = step(0., smoke_val);
+    vec3 smoke_col = smoke_pal[int(posterize(smoke_val, spl)*float(spl))] - vec3(1.-smoke_a);
+
+    float b = step(1.,border(pos));
+    float bw = step(smoke_val*1.25, boom_val);
+
+    vec3 color = bw * boom_col + (1.-bw) * smoke_col;
+    float alpha = bw * boom_a + (1.-bw) * smoke_a;
+
+    vec4 result = vec4(alpha == 1. ? color : vec3(0.5), alpha) - vec4(vec3(1.-b), 1.);
+    fragColor = vec4(result.rgb, alpha);
+}
+
+IMPORTANTE: esse código é uma versão portada para a engine Godot, então
+tem sintaxe específica dela (SCREEN_UV, SCREEN_PIXEL_SIZE, a anotação
+": hint_range(...)" nos uniforms, TIME). Ignore essas partes específicas
+do Godot e trate como o shader Shadertoy original: uma função de
+fragmento que recebe uma coordenada 2D (equivalente a "pos" aqui) e o
+tempo decorrido, e devolve uma cor RGBA de explosão animada.
+
+Preciso adaptar esse shader para WGSL (linguagem de shaders do WebGPU),
+para usar como efeito de explosão num jogo 3D, aplicado sobre um quad
+voltado para a câmera, posicionado no ponto de impacto de um projétil.
+
+Por favor:
+1. Converta para WGSL, removendo as partes específicas do Godot e
+   mantendo o efeito visual (a "bola de fogo com fumaça") o mais
+   parecido possível.
+2. Explique as principais mudanças de sintaxe/conceito entre GLSL e
+   WGSL que foram necessárias (tipos, uniforms, arrays, funções
+   built-in diferentes).
+3. Indique como eu passaria o tempo decorrido e a posição do impacto
+   como uniforms dentro de uma aplicação WebGPU em JavaScript.
+
+Resposta ChatGPT:
+Sim. A conversão relativamente direta funciona bem porque a maior parte do shader original é matemática independente da engine. O principal cuidado é separar:
+
+posição do impacto no mundo 3D → responsabilidade do vertex shader/cena;
+pos 2D e tempo → usados pelo fragment shader para gerar a explosão;
+aspect ratio → substitui o uso de SCREEN_PIXEL_SIZE.
+
+Abaixo está uma versão WGSL mantendo a lógica visual original.
+
+1. Fragment shader em WGSL
+
+Este shader recebe uma coordenada 2D normalizada do quad (uv), o tempo decorrido e alguns parâmetros pelo uniform buffer.
+
+struct EffectUniforms {
+    time: f32,
+    size: f32,
+    aspect: f32,
+    _padding: f32,
+
+    // Pode ser usado pelo vertex shader.
+    impact_position: vec3<f32>,
+    _padding2: f32,
+};
+
+@group(0) @binding(0)
+var<uniform> effect: EffectUniforms;
+
+
+// ------------------------------------------------------------
+// Paleta
+// ------------------------------------------------------------
+
+const BOOM_PAL1: vec3<f32> = vec3<f32>(0.2, 0.15, 0.3);
+const BOOM_PAL2: vec3<f32> = vec3<f32>(0.9, 0.15, 0.05);
+const BOOM_PAL3: vec3<f32> = vec3<f32>(0.9, 0.5, 0.1);
+const BOOM_PAL4: vec3<f32> = vec3<f32>(0.95, 0.95, 0.35);
+
+const SMOKE_PAL1: vec3<f32> = vec3<f32>(0.2, 0.15, 0.3);
+const SMOKE_PAL2: vec3<f32> = vec3<f32>(0.35, 0.3, 0.45);
+const SMOKE_PAL3: vec3<f32> = vec3<f32>(0.5, 0.45, 0.6);
+
+
+// ------------------------------------------------------------
+// Parâmetros
+// ------------------------------------------------------------
+
+const DISPERSE: f32 = 1.0;
+
+const BOOM_REPEAT: f32 = 1.0;
+const BOOM_SHAPE: f32 = 12.0;
+const BOOM_DISTORTION: f32 = 0.5;
+const BOOM_BUBBLES: f32 = 0.5;
+const BOOM_BW: f32 = 0.5;
+
+const SMOKE_REPEAT: f32 = 1.0;
+const SMOKE_SHAPE: f32 = 16.0;
+const SMOKE_DISTORTION: f32 = 1.5;
+const SMOKE_BUBBLES: f32 = 0.5;
+const SMOKE_BW: f32 = 0.75;
+
+
+// ------------------------------------------------------------
+// Random 3D
+// ------------------------------------------------------------
+
+fn n_rand3(p: vec3<f32>) -> vec3<f32> {
+    let r = fract(
+        sin(
+            vec3<f32>(
+                dot(p, vec3<f32>(127.1, 311.7, 371.8)),
+                dot(p, vec3<f32>(269.5, 183.3, 456.1)),
+                dot(p, vec3<f32>(352.5, 207.3, 198.67))
+            )
+        ) * 43758.5453
+    ) * 2.0 - 1.0;
+
+    return normalize(
+        vec3<f32>(
+            r.x / cos(r.x),
+            r.y / cos(r.y),
+            r.z / cos(r.z)
+        )
+    );
+}
+
+
+// ------------------------------------------------------------
+// Noise
+// ------------------------------------------------------------
+
+fn noise(p: vec3<f32>) -> f32 {
+    let fv = fract(p);
+    let nv = floor(p);
+
+    let u = fv * fv * fv *
+        (fv * (fv * 6.0 - 15.0) + 10.0);
+
+    let n000 = dot(
+        n_rand3(nv + vec3<f32>(0.0, 0.0, 0.0)),
+        fv - vec3<f32>(0.0, 0.0, 0.0)
+    );
+
+    let n100 = dot(
+        n_rand3(nv + vec3<f32>(1.0, 0.0, 0.0)),
+        fv - vec3<f32>(1.0, 0.0, 0.0)
+    );
+
+    let n010 = dot(
+        n_rand3(nv + vec3<f32>(0.0, 1.0, 0.0)),
+        fv - vec3<f32>(0.0, 1.0, 0.0)
+    );
+
+    let n110 = dot(
+        n_rand3(nv + vec3<f32>(1.0, 1.0, 0.0)),
+        fv - vec3<f32>(1.0, 1.0, 0.0)
+    );
+
+    let n001 = dot(
+        n_rand3(nv + vec3<f32>(0.0, 0.0, 1.0)),
+        fv - vec3<f32>(0.0, 0.0, 1.0)
+    );
+
+    let n101 = dot(
+        n_rand3(nv + vec3<f32>(1.0, 0.0, 1.0)),
+        fv - vec3<f32>(1.0, 0.0, 1.0)
+    );
+
+    let n011 = dot(
+        n_rand3(nv + vec3<f32>(0.0, 1.0, 1.0)),
+        fv - vec3<f32>(0.0, 1.0, 1.0)
+    );
+
+    let n111 = dot(
+        n_rand3(nv + vec3<f32>(1.0, 1.0, 1.0)),
+        fv - vec3<f32>(1.0, 1.0, 1.0)
+    );
+
+    let x00 = mix(n000, n100, u.x);
+    let x10 = mix(n010, n110, u.x);
+    let x01 = mix(n001, n101, u.x);
+    let x11 = mix(n011, n111, u.x);
+
+    let y0 = mix(x00, x10, u.y);
+    let y1 = mix(x01, x11, u.y);
+
+    return mix(y0, y1, u.z);
+}
+
+
+// ------------------------------------------------------------
+// Worley noise
+// ------------------------------------------------------------
+
+fn worley(s: vec3<f32>) -> f32 {
+    let si = floor(s);
+    let sf = fract(s);
+
+    var m_dist: f32 = 1.0;
+
+    for (var y: i32 = -1; y <= 1; y = y + 1) {
+        for (var x: i32 = -1; x <= 1; x = x + 1) {
+            for (var z: i32 = -1; z <= 1; z = z + 1) {
+
+                let neighbor = vec3<f32>(
+                    f32(x),
+                    f32(y),
+                    f32(z)
+                );
+
+                var point = fract(
+                    n_rand3(si + neighbor)
+                );
+
+                point = 0.5 +
+                    0.5 *
+                    sin(
+                        DISPERSE * effect.time +
+                        6.2831 * point
+                    );
+
+                let diff = neighbor + point - sf;
+                let dist = length(diff);
+
+                m_dist = min(m_dist, dist);
+            }
+        }
+    }
+
+    return m_dist;
+}
+
+
+// ------------------------------------------------------------
+// Octave noise
+// ------------------------------------------------------------
+
+fn oct_noise(pos: vec3<f32>, o: f32) -> f32 {
+    var ns: f32 = 0.0;
+    var d: f32 = 0.0;
+
+    let io: i32 = i32(o);
+    let fo: f32 = fract(o);
+
+    for (var i: i32 = 0; i <= io; i = i + 1) {
+        let v = pow(2.0, f32(i));
+
+        d = d + 1.0 / v;
+        ns = ns + noise(pos * v) * (1.0 / v);
+    }
+
+    let v = pow(2.0, f32(io + 1));
+
+    d = d + fo / v;
+    ns = ns + noise(pos * v) * (fo / v);
+
+    return ns / d;
+}
+
+
+// ------------------------------------------------------------
+// Explosão
+// ------------------------------------------------------------
+
+fn boom(p: vec2<f32>) -> f32 {
+
+    let repeat = effect.time * BOOM_REPEAT % 2.0;
+
+    let shape =
+        1.0
+        - pow(
+            distance(
+                vec3<f32>(p, 0.0),
+                vec3<f32>(0.0)
+            ),
+            2.0
+        ) / (repeat * BOOM_SHAPE)
+        - repeat * 2.0;
+
+    let distortion =
+        noise(
+            vec3<f32>(
+                p * BOOM_DISTORTION,
+                effect.time * 0.5
+            )
+        );
+
+    let bubbles =
+        BOOM_BUBBLES -
+        pow(
+            worley(
+                vec3<f32>(
+                    p * 1.2,
+                    effect.time * 2.0
+                )
+            ),
+            3.0
+        );
+
+    let effects =
+        BOOM_BW * bubbles +
+        (1.0 - BOOM_BW) * distortion;
+
+    return shape + effects;
+}
+
+
+// ------------------------------------------------------------
+// Fumaça
+// ------------------------------------------------------------
+
+fn smoke(p: vec2<f32>) -> f32 {
+
+    let repeat = effect.time * SMOKE_REPEAT % 2.0;
+
+    let smoke_offset =
+        vec2<f32>(0.0, 2.0) *
+        pow(repeat / 1.45, 2.0) *
+        1.5;
+
+    let shape =
+        1.0
+        - pow(
+            distance(
+                vec3<f32>(p - smoke_offset, 0.0),
+                vec3<f32>(0.0)
+            ),
+            2.0
+        ) / (repeat * SMOKE_SHAPE)
+        - pow(repeat * 1.5, 0.5);
+
+    let distortion =
+        noise(
+            vec3<f32>(
+                p * SMOKE_DISTORTION -
+                    smoke_offset,
+                effect.time * 0.1
+            )
+        );
+
+    let worley_pos =
+        (p / pow(repeat, 0.35)) -
+        vec2<f32>(0.0, 2.0) *
+        pow(repeat / 1.65, 2.0) *
+        1.5;
+
+    let bubbles =
+        SMOKE_BUBBLES -
+        pow(
+            worley(
+                vec3<f32>(
+                    worley_pos,
+                    effect.time * 0.1
+                )
+            ),
+            2.0
+        );
+
+    let effects =
+        SMOKE_BW * bubbles +
+        (1.0 - SMOKE_BW) * distortion;
+
+    return shape + effects;
+}
+
+
+// ------------------------------------------------------------
+// Campo combinado
+// ------------------------------------------------------------
+
+fn field(p: vec2<f32>) -> f32 {
+    let b = boom(p);
+    let s = smoke(p);
+
+    return max(b, s);
+}
+
+
+// ------------------------------------------------------------
+// Gradiente
+// ------------------------------------------------------------
+
+fn grad(x: vec2<f32>) -> vec2<f32> {
+
+    let h = vec2<f32>(0.01, 0.0);
+
+    return vec2<f32>(
+        field(x + h.xy) - field(x - h.xy),
+        field(x + h.yx) - field(x - h.yx)
+    ) / (2.0 * h.x);
+}
+
+
+// ------------------------------------------------------------
+// Borda
+// ------------------------------------------------------------
+
+fn border(uv: vec2<f32>) -> f32 {
+
+    let b = field(uv);
+    let g = grad(uv);
+
+    let de = abs(b) / length(g);
+
+    let eps = 0.01;
+
+    return smoothstep(
+        1.0 * eps,
+        2.0 * eps,
+        de
+    );
+}
+
+
+// ------------------------------------------------------------
+// Posterize
+// ------------------------------------------------------------
+
+fn posterize(v: f32, n: f32) -> f32 {
+    return floor(v * n) / (n - 1.0);
+}
+
+
+// ------------------------------------------------------------
+// Fragment
+// ------------------------------------------------------------
+
+struct FragmentInput {
+    @location(0) uv: vec2<f32>,
+};
+
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+};
+
+
+@fragment
+fn fs_main(input: FragmentInput) -> FragmentOutput {
+
+    let uv = input.uv;
+
+    // Mesmo conceito do shader original:
+    // centro aproximado em (.5, .4)
+    var pos = uv - vec2<f32>(0.5, 0.4);
+
+    // Corrige proporção da tela/quad.
+    pos.x = pos.x / effect.aspect;
+
+    pos = pos * effect.size;
+
+
+    // --------------------------------------------------------
+    // Explosão
+    // --------------------------------------------------------
+
+    let boom_val = boom(pos);
+
+    let boom_a = step(0.0, boom_val);
+
+    let boom_index_f = clamp(
+        floor(
+            posterize(
+                boom_val,
+                4.0
+            ) * 4.0
+        ),
+        0.0,
+        3.0
+    );
+
+    let boom_index = u32(boom_index_f);
+
+    let boom_palette =
+        array<vec3<f32>, 4>(
+            BOOM_PAL1,
+            BOOM_PAL2,
+            BOOM_PAL3,
+            BOOM_PAL4
+        );
+
+    var boom_col =
+        boom_palette[boom_index];
+
+    boom_col =
+        boom_col -
+        vec3<f32>(1.0 - boom_a);
+
+
+    // --------------------------------------------------------
+    // Fumaça
+    // --------------------------------------------------------
+
+    let smoke_val = smoke(pos);
+
+    let smoke_a = step(0.0, smoke_val);
+
+    let smoke_index_f = clamp(
+        floor(
+            posterize(
+                smoke_val,
+                3.0
+            ) * 3.0
+        ),
+        0.0,
+        2.0
+    );
+
+    let smoke_index = u32(smoke_index_f);
+
+    let smoke_palette =
+        array<vec3<f32>, 3>(
+            SMOKE_PAL1,
+            SMOKE_PAL2,
+            SMOKE_PAL3
+        );
+
+    var smoke_col =
+        smoke_palette[smoke_index];
+
+    smoke_col =
+        smoke_col -
+        vec3<f32>(1.0 - smoke_a);
+
+
+    // --------------------------------------------------------
+    // Combinação fogo + fumaça
+    // --------------------------------------------------------
+
+    let b = step(
+        1.0,
+        border(pos)
+    );
+
+    let bw = step(
+        smoke_val * 1.25,
+        boom_val
+    );
+
+    let color =
+        bw * boom_col +
+        (1.0 - bw) * smoke_col;
+
+    let alpha =
+        bw * boom_a +
+        (1.0 - bw) * smoke_a;
+
+
+    let result_rgb =
+        select(
+            vec3<f32>(0.5),
+            color,
+            alpha == 1.0
+        ) -
+        vec3<f32>(1.0 - b);
+
+
+    var output: FragmentOutput;
+
+    output.color =
+        vec4<f32>(
+            result_rgb,
+            alpha
+        );
+
+    return output;
+}
+
+Essa versão mantém a estrutura do shader original: noise + worley → boom/smoke → campo combinado → gradiente/borda → posterização → RGBA.
+
+Há, porém, uma pequena diferença intencional: fiz clamp no índice das paletas. Isso evita acesso fora dos limites do array em WGSL quando o valor de ruído estiver em uma faixa inesperada.
+
+2. Principais diferenças GLSL → WGSL
+Tipos
+
+No GLSL original:
+
+vec2
+vec3
+vec4
+float
+int
+
+Em WGSL:
+
+vec2<f32>
+vec3<f32>
+vec4<f32>
+f32
+i32
+
+Também é comum usar os aliases:
+
+vec2f
+vec3f
+vec4f
+
+Por exemplo:
+
+vec3 r;
+
+vira:
+
+var r: vec3<f32>;
+
+E:
+
+vec3(1.0, 2.0, 3.0)
+
+vira:
+
+vec3<f32>(1.0, 2.0, 3.0)
+WGSL é mais rígido com conversões
+
+No GLSL você encontra bastante conversão implícita.
+
+Por exemplo:
+
+float v = i;
+
+No WGSL é melhor explicitar:
+
+let v: f32 = f32(i);
+
+Por isso no loop do Worley temos:
+
+for (var x: i32 = -1; x <= 1; x = x + 1)
+
+e depois:
+
+f32(x)
+
+ao construir o vec3.
+
+uniform é diferente
+
+No Godot você tinha coisas como:
+
+uniform float size;
+uniform float disperse;
+
+Em WebGPU/WGSL, normalmente você cria uma struct:
+
+struct EffectUniforms {
+    time: f32,
+    size: f32,
+    aspect: f32,
+    _padding: f32,
+
+    impact_position: vec3<f32>,
+    _padding2: f32,
+};
+
+e depois:
+
+@group(0) @binding(0)
+var<uniform> effect: EffectUniforms;
+
+Então:
+
+iTime
+
+foi substituído por:
+
+effect.time
+
+Isso é particularmente importante em WebGPU porque o layout de memória do uniform buffer precisa ser respeitado. vec3<f32>, por exemplo, possui alinhamento de 16 bytes no layout de buffers.
+
+Por isso coloquei:
+
+impact_position: vec3<f32>,
+_padding2: f32,
+
+em vez de simplesmente terminar a struct com vec3.
+
+3. Arrays
+
+No GLSL original:
+
+vec3 boom_pal[4] = {
+    boom_pal1,
+    boom_pal2,
+    boom_pal3,
+    boom_pal4
+};
+
+Em WGSL:
+
+let boom_palette =
+    array<vec3<f32>, 4>(
+        BOOM_PAL1,
+        BOOM_PAL2,
+        BOOM_PAL3,
+        BOOM_PAL4
+    );
+
+A sintaxe geral é:
+
+array<TIPO, TAMANHO>
+
+Por exemplo:
+
+array<f32, 4>
+array<vec3<f32>, 4>
+
+Arrays de tamanho fixo são suportados diretamente pelo WGSL.
+
+4. TIME desaparece
+
+No Godot:
+
+#define iTime TIME
+
+Isso não existe em WebGPU.
+
+A aplicação JavaScript precisa atualizar o tempo:
+
+effect.time
+
+Por exemplo:
+
+const uniforms = new Float32Array([
+    elapsedTime,
+    5.0,       // size
+    aspect,     // aspect
+    0.0,        // padding
+
+    impactX,
+    impactY,
+    impactZ,
+    0.0         // padding
+]);
+
+device.queue.writeBuffer(
+    uniformBuffer,
+    0,
+    uniforms
+);
+
+Ou seja:
+
+JavaScript
+    │
+    │ elapsedTime
+    ▼
+GPUBuffer
+    │
+    ▼
+effect.time
+    │
+    ▼
+boom() / smoke()
+5. SCREEN_PIXEL_SIZE desaparece
+
+O original fazia:
+
+pos.x /= SCREEN_PIXEL_SIZE.x / SCREEN_PIXEL_SIZE.y;
+
+No seu caso, não temos mais uma tela 2D da Godot.
+
+Para um quad em 3D, você pode calcular o aspect ratio no JavaScript:
+
+const aspect = canvas.width / canvas.height;
+
+e enviar:
+
+uniforms[2] = aspect;
+
+No shader:
+
+pos.x = pos.x / effect.aspect;
+
+Dependendo de como você dimensionar o quad, pode ser necessário usar o aspect ratio do quad em vez do canvas. Isso é importante se o quad tiver largura e altura diferentes.
+
+6. SCREEN_UV desaparece
+
+No Godot:
+
+vec2 uv = SCREEN_UV;
+
+No WebGPU, a melhor solução é simplesmente passar o UV do quad do vertex shader para o fragment shader:
+
+struct FragmentInput {
+    @location(0) uv: vec2<f32>,
+};
+
+Então:
+
+let uv = input.uv;
+
+Você terá:
+
+Quad
+┌───────────────┐
+│               │
+│   UV 0 → 1    │
+│               │
+└───────────────┘
+
+e o fragment shader calcula a explosão dentro dele.
+
+7. A posição do impacto não precisa estar no fragment shader
+
+Esse é um ponto importante para seu caso 3D.
+
+Você disse que a explosão será:
+
+aplicada sobre um quad voltado para a câmera, posicionado no ponto de impacto de um projétil.
+
+Então eu recomendo pensar na arquitetura assim:
+
+                 Mundo 3D
+
+        projétil
+           ↓
+           ↓
+           X  ← impacto
+          /|\
+         / | \
+        /  |  \
+       QUAD
+        ↑
+        │
+    explosão WGSL
+
+O JavaScript sabe onde ocorreu o impacto:
+
+const impactPosition = {
+    x: 10.0,
+    y: 2.5,
+    z: -8.0
+};
+
+Essa posição é usada para colocar o quad naquele ponto.
+
+O fragment shader não precisa saber a posição 3D do impacto para desenhar a explosão.
+
+Ele só precisa saber:
+
+"estou desenhando um pixel deste quad"
+
+e calcular:
+
+UV → pos → boom/smoke → cor
+8. Vertex shader para o quad 3D
+
+Para deixar isso mais claro, você pode ter um vertex shader separado.
+
+Uma abordagem muito prática para um efeito de impacto é usar billboarding: o quad sempre fica voltado para a câmera.
+
+Por exemplo, podemos passar para o shader:
+
+struct CameraUniforms {
+    view_proj: mat4x4<f32>,
+
+    camera_right: vec3<f32>,
+    _padding0: f32,
+
+    camera_up: vec3<f32>,
+    _padding1: f32,
+};
+
+@group(1) @binding(0)
+var<uniform> camera: CameraUniforms;
+
+E usar o impact_position do primeiro buffer:
+
+struct VertexInput {
+    @location(0) position: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_main(input: VertexInput) -> VertexOutput {
+
+    let center = effect.impact_position;
+
+    let half_size = effect.size * 0.5;
+
+    let world_position =
+        center
+        + camera.camera_right * input.position.x * half_size
+        + camera.camera_up * input.position.y * half_size;
+
+    var output: VertexOutput;
+
+    output.position =
+        camera.view_proj *
+        vec4<f32>(
+            world_position,
+            1.0
+        );
+
+    output.uv = input.uv;
+
+    return output;
+}
+
+Seu quad poderia ter vértices:
+
+const vertices = new Float32Array([
+    // position    // uv
+
+    -1, -1,         0, 0,
+     1, -1,         1, 0,
+     1,  1,         1, 1,
+
+    -1, -1,         0, 0,
+     1,  1,         1, 1,
+    -1,  1,         0, 1,
+]);
+
+Assim:
+
+impactPosition
+      │
+      ▼
+   centro
+      │
+      ├───────────────┐
+      │               │
+      ▼               ▼
+camera_right      camera_up
+      │               │
+      └───────┬───────┘
+              ▼
+          quad 3D
+              │
+              ▼
+        fragment shader
+              │
+        boom + smoke
+
+Esse é um padrão bastante adequado para explosões, fogo, fumaça, muzzle flashes etc.
+
+9. Passando o tempo pelo JavaScript
+
+No seu game loop, você pode manter um acumulador:
+
+let elapsedTime = 0;
+
+function frame(timestamp) {
+
+    elapsedTime = timestamp / 1000.0;
+
+    // atualiza uniform
+    updateExplosionUniforms();
+
+    // render
+    render();
+
+    requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+
+E:
+
+function updateExplosionUniforms() {
+
+    const aspect =
+        canvas.width / canvas.height;
+
+    const data = new Float32Array([
+        elapsedTime,  // 0
+        5.0,          // size
+        aspect,       // aspect
+        0.0,          // padding
+
+        impact.x,     // impact_position.x
+        impact.y,     // impact_position.y
+        impact.z,     // impact_position.z
+        0.0           // padding
+    ]);
+
+    device.queue.writeBuffer(
+        effectUniformBuffer,
+        0,
+        data
+    );
+}
+
+A API queue.writeBuffer() é justamente o caminho usual para atualizar o conteúdo do buffer que o shader vai ler.
+
+10. Mas existe um detalhe importante: duração da explosão
+
+No shader original:
+
+float repeat = mod(iTime * boom_repeat, 2.);
+
+Então ele fica se repetindo continuamente.
+
+Para um jogo, provavelmente você não quer uma explosão que fique repetindo para sempre.
+
+Você provavelmente vai querer:
+
+impacto
+   ↓
+0.0 s
+   ↓
+explosão
+   ↓
+0.5 s
+   ↓
+fogo diminuindo
+   ↓
+1.0 s
+   ↓
+fumaça
+   ↓
+1.5 s
+   ↓
+desaparece
+
+Nesse caso, eu faria uma pequena adaptação.
+
+Em vez de mandar o tempo global:
+
+elapsedTime
+
+mande o tempo desde o nascimento daquela explosão:
+
+const explosionTime =
+    (performance.now() - explosion.startTime) / 1000;
+
+E:
+
+const data = new Float32Array([
+    explosionTime,
+    explosion.size,
+    aspect,
+    0.0,
+
+    explosion.x,
+    explosion.y,
+    explosion.z,
+    0.0
+]);
+
+Quando:
+
+explosionTime > 1.5
+
+você remove o quad da cena.
+
+Isso permite ter várias explosões independentes:
+
+explosions = [
+    {
+        x: 10,
+        y: 2,
+        z: -4,
+        startTime: 12500
+    },
+    {
+        x: 15,
+        y: 3,
+        z: -8,
+        startTime: 13200
+    },
+    {
+        x: 7,
+        y: 1,
+        z: -2,
+        startTime: 14000
+    }
+];
+
+Cada uma pode ter seu próprio time.
+
+Uma observação sobre desempenho
+
+Esse shader é relativamente pesado para uma explosão 2D porque, para cada pixel, ele executa:
+
+noise();
+worley();
+vários n_rand3();
+grad(), que chama field() duas vezes por componente;
+e field() chama tanto boom() quanto smoke().
+
+E o worley() ainda tem:
+
+for y = -1..1
+    for x = -1..1
+        for z = -1..1
+
+ou seja, 27 células por chamada.
+
+Como grad() recalcula o campo diversas vezes, isso pode ficar caro se você colocar muitas explosões simultâneas ou quads grandes.
+
+Para um jogo 3D, eu começaria exatamente com essa versão para preservar o visual e depois faria uma segunda etapa de otimização, principalmente:
+
+reduzir chamadas repetidas de field();
+simplificar o cálculo de grad/border;
+reduzir o custo do Worley;
+limitar o tamanho do quad;
+eventualmente usar uma versão pré-calculada/texture-based para muitas explosões.
+
+A estrutura final que eu recomendaria para seu jogo é:
+
+             JavaScript
+                 │
+       ┌─────────┴─────────┐
+       │                   │
+ impactPosition        explosionTime
+       │                   │
+       ▼                   ▼
+  Vertex Shader      Fragment Shader
+       │                   │
+       │             ┌─────┴─────┐
+       │             │           │
+       ▼           BOOM        SMOKE
+   Billboard         │           │
+       │             └─────┬─────┘
+       │                   │
+       └─────────────┬─────┘
+                     ▼
+                RGBA final
+                     │
+                     ▼
+                 framebuffer
+
+E isso preserva exatamente a ideia do shader original: o 3D cuida do posicionamento e do billboard; o fragment shader continua sendo essencialmente o efeito 2D do Shadertoy.
+
+A especificação WGSL também deixa explícitas as regras de tipos, arrays e layout/alinhamento dos dados compartilhados entre JavaScript e shaders, por isso vale manter o struct dos uniforms cuidadosamente alinhado.
