@@ -591,3 +591,38 @@ cor e onda de choque mais sutil;
   preenchimento e ambiente aumentados.
 - Uma medição em DPR 1.5 travou (janela de teste sem foco, como na
   entrada 14) → repetida isoladamente: 60 fps.
+
+## 19. "Nada mudou" depois da entrada 18: cache do navegador + servidor duplicado — 04/10/2026 16:48
+
+**Prompt:** captura de tela mostrando o jogo antigo (tanque rosa e azul,
+muro marrom de 3.5, céu azul liso) depois das mudanças visuais da entrada 18.
+
+**Diagnóstico:**
+- O servidor entregava o código novo (`curl` confirmou `createSky` e
+  `TANK_BODY_COLOR`). Então o problema não era o código, era cache.
+- O `python -m http.server` não manda `Cache-Control`. Sem esse cabeçalho, o
+  navegador decide sozinho (cache heurístico, pela idade do `Last-Modified`)
+  reaproveitar os módulos `.js` antigos sem perguntar ao servidor.
+- Além disso, havia **dois servidores** na porta 8000: um `http.server`
+  antigo, de uma sessão anterior, ainda escutando em IPv6 (`::`), e o novo em
+  IPv4. Como `localhost` resolve primeiro para `::1`, era o antigo que
+  respondia.
+
+**Feito:**
+- `serve.py`: o mesmo servidor de arquivos do Python, mas com
+  `Cache-Control: no-store` em toda resposta e escutando em IPv6 + IPv4 ao
+  mesmo tempo (`IPV6_V6ONLY = 0`), para não ser "atropelado" por outro
+  processo na mesma porta.
+- Parado só o processo que estava na porta 8000 (os dois servidores antigos
+  deste projeto, identificados pela linha de comando), sem fechar outros
+  processos Python.
+- README: rodar com `python serve.py`.
+
+**Arquivos:** `serve.py` (novo), `README.md`, `docs/ai-log.md`.
+
+**Testes:** `localhost`, `127.0.0.1` e `[::1]` respondem com
+`Cache-Control: no-store` e o `main.js` novo.
+
+**Observação:** o navegador que já tinha os arquivos antigos em cache
+precisa de **um** recarregamento forçado (Ctrl+Shift+R / Ctrl+F5) ou ser
+reaberto. Daí em diante, cada recarregamento comum pega a versão atual.

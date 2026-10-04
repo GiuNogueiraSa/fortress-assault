@@ -19,8 +19,12 @@ O código usa módulos ES (`import`), então **não funciona abrindo o
 Na pasta do projeto:
 
 ```sh
-python -m http.server 8000
+python serve.py
 ```
+
+(`serve.py` é o servidor de arquivos do Python com o cache desligado. Com o
+`python -m http.server` comum, o navegador pode continuar usando versões
+antigas dos `.js` depois que o código muda.)
 
 Depois abra <http://localhost:8000> num **Chrome ou Edge atualizado** (com
 suporte a WebGPU). Se o WebGPU estiver desativado, ative em
