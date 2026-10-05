@@ -1954,3 +1954,36 @@ nova, abriu normalmente.
 slides), mantendo o passo a passo local como garantia sem internet.
 
 **Arquivos:** `docs/COMO_RODAR.md`, `docs/ai-log.md`.
+
+## 44. Slides com prints novos do jogo funcionando — 05/10/2026 19:53
+
+**Prompt:** "ajuste o presentation para que as imagens do jogo apareçam,
+tire prints do jogo funcionando".
+
+**Diagnóstico:** as 3 imagens já existentes carregavam (servidor local e
+GitHub Pages respondem 200, `naturalWidth` > 0). O que faltava era mostrar
+o jogo de fato em ação: só 3 slides tinham imagem, e as capturas eram de
+versões anteriores (HUD sem Q/E, por exemplo).
+
+**Feito:**
+- **Prints novos** (Playwright + Chrome com GPU, janela visível, porque o
+  headless não inicia o WebGPU): menu, briefing da missão 3, portão caindo
+  e derrubado (missão 1), torre acertando o tanque (missão 2), combate com
+  tanques inimigos e tela de missão falhada (missão 3). Salvos em
+  `assets/slides/jogo-*.jpg` (JPG qualidade 88, ~70–100 KB cada).
+- **Slide novo "O jogo funcionando"** (3º slide): galeria 3×2 com legenda;
+  no celular vira uma coluna.
+- Slides 2 e 8 passam a usar as capturas novas.
+
+**Arquivos:** `src/presentation.html`, `assets/slides/jogo-*.jpg` (novos),
+`docs/ai-log.md`.
+
+**Testes (Playwright, Chrome):**
+- Jogo: "WebGPU ativo", ~60 fps na missão 3, sem erros de JS (o único 404
+  é o `favicon.ico`).
+- Slides: as 9 imagens carregadas; layout conferido em 1600×900, 1280×720
+  e 400×800.
+
+**Problema:** no celular as imagens da galeria se sobrepunham (as linhas do
+grid encolhiam com `flex: 1` dentro do slide de altura fixa). Corrigido
+com `flex: none` e `aspect-ratio` nas imagens na regra mobile.

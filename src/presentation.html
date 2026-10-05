@@ -71,6 +71,13 @@
   .small { font-size: .82em; }
   code { font-family: Consolas, "Cascadia Code", monospace; font-size: .9em; background: var(--panel-2); padding: .05em .3em; border-radius: 4px; color: var(--yellow); }
   img.shot { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+
+  /* galeria de prints do jogo */
+  .gallery { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: .8em; min-height: 0; }
+  .gallery figure { margin: 0; min-height: 0; display: flex; flex-direction: column; gap: .3em; }
+  .gallery img { flex: 1; min-height: 0; width: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  .gallery figcaption { font-size: .68em; color: var(--muted); }
+  .gallery figcaption b { color: var(--text); }
   .ok { color: var(--green); font-weight: 600; }
   .bad { color: var(--red); font-weight: 600; }
   .warn { color: var(--yellow); font-weight: 600; }
@@ -140,7 +147,9 @@
     }
     h1 { font-size: 2.4em; }
     .cover h1 { font-size: 2.6em; }
-    .body, .cols-2, .cols-32, .cases { grid-template-columns: 1fr !important; }
+    .body, .cols-2, .cols-32, .cases, .gallery { grid-template-columns: 1fr !important; }
+    .gallery { grid-template-rows: none; flex: none; }
+    .gallery img { flex: none; height: auto; aspect-ratio: 900 / 560; }
     .stats { flex-direction: column; }
     table.log td:last-child { white-space: normal; }
     td code { word-break: break-all; }
@@ -187,7 +196,7 @@
     <h2>Objetivo do projeto</h2>
     <p class="sub">Jogo 3D de tanque renderizado com WebGPU: destruir a fortaleza a tiros de canhão.</p>
     <div class="body cols-32">
-      <img class="shot" src="../assets/slides/missao1-explosao.jpg" alt="Tanque atirando no portão do castelo, com explosão">
+      <img class="shot" src="../assets/slides/jogo-m1-explosao.jpg" alt="Missão 1: terceiro tiro derruba o portão do castelo, com explosão">
       <div class="small" style="display:grid; gap:.7em; align-content:start">
         <div class="card">
           <h3>Tecnologias</h3>
@@ -209,6 +218,21 @@
           </ul>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- 2b. O jogo funcionando (prints de 05/10/2026, Chrome com WebGPU) -->
+  <section class="slide">
+    <div class="kicker">Demonstração</div>
+    <h2>O jogo funcionando</h2>
+    <p class="sub">Capturas reais do jogo rodando no Chrome com WebGPU (~60 fps)</p>
+    <div class="body gallery">
+      <figure><img src="../assets/slides/jogo-menu.jpg" alt="Menu principal com o castelo ao pôr do sol"><figcaption><b>Menu</b>: castelo 3D ao fundo, missões, tutorial e scores</figcaption></figure>
+      <figure><img src="../assets/slides/jogo-briefing.jpg" alt="Briefing da missão 3 com objetivos e controles"><figcaption><b>Briefing</b>: objetivos, dificuldade e controles</figcaption></figure>
+      <figure><img src="../assets/slides/jogo-m1-portao.jpg" alt="Missão 1: portão derrubado, passagem aberta"><figcaption><b>Missão 1</b>: portão derrubado após 3 tiros</figcaption></figure>
+      <figure><img src="../assets/slides/jogo-m2-defesa.jpg" alt="Missão 2: torre acerta o tanque, explosão e cratera"><figcaption><b>Missão 2</b>: torres atiram de volta; explosão e cratera</figcaption></figure>
+      <figure><img src="../assets/slides/jogo-m3-combate.jpg" alt="Missão 3: combate com tanques inimigos e partículas"><figcaption><b>Missão 3</b>: tanques inimigos, partículas e luz dinâmica</figcaption></figure>
+      <figure><img src="../assets/slides/jogo-m3-derrota.jpg" alt="Tela de missão falhada com progresso"><figcaption><b>Fim de missão</b>: resultado e progresso</figcaption></figure>
     </div>
   </section>
 
@@ -386,7 +410,7 @@
         </ul>
       </div>
       <div style="display:grid; gap:.7em; align-content:start">
-        <img class="shot" src="../assets/slides/missao3.jpg" alt="Missão 3 em combate: impacto no tanque, partículas e HUD">
+        <img class="shot" src="../assets/slides/jogo-m3-combate.jpg" alt="Missão 3 em combate: impacto no tanque, partículas e HUD">
         <div class="card small">
           ✅ <b>35–54 fps</b> na missão 3 em combate (medido; varia com a máquina)<br>
           ✅ As 3 missões vencidas até o fim nos testes automatizados, sem erros no console
