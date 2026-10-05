@@ -1904,3 +1904,24 @@ priority waiting request for pages build and deployment @ main exists"
 apenas substitui a publicação na fila por uma equivalente.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 42. O jogo é pesado demais para o GitHub Pages? — 05/10/2026 18:27
+
+**Prompt:** "mas será que o jogo não é pesado para o Pages?"
+
+**Feito:** medição e resposta, sem mudança de código.
+- **Tamanho:** os arquivos versionados somam **~3,0 MB**. Os maiores são o
+  modelo `tank.glb` (1,7 MB), o `Tone.js` (0,35 MB) e as imagens dos
+  slides.
+- **Download para jogar:** ~2,3 MB na primeira visita (HTML + JS + Tone.js
+  + modelo).
+- **Limites do GitHub Pages:** site de até 1 GB, ~100 GB/mês de tráfego
+  (limite flexível) e arquivos de até 100 MB. O projeto fica muito abaixo
+  de todos.
+- **Onde o jogo pesa:** na GPU de quem joga (WebGPU roda no navegador do
+  visitante). O Pages só entrega os arquivos estáticos; não roda nada do
+  jogo. O desempenho no Pages é o mesmo do `localhost` na mesma máquina.
+- O atraso do link continua sendo o incidente do GitHub Actions (entradas
+  39 e 41), não o tamanho.
+
+**Arquivos:** `docs/ai-log.md`.
