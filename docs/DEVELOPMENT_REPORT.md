@@ -22,9 +22,9 @@ ajudando no desenvolvimento.
 - Documentação completa do uso de IAs.
 
 **Números do projeto:**
-- 18 módulos JavaScript, ~3.800 linhas no total, contando os shaders WGSL
+- 19 módulos JavaScript, ~4.200 linhas no total, contando os shaders WGSL
   embutidos (que ficam no mesmo arquivo do módulo).
-- 27 entradas no [ai-log.md](ai-log.md) e 27 commits.
+- 28 entradas no [ai-log.md](ai-log.md) e 28 commits.
 - 4 tags de versão estável.
 
 ## 2. Arquitetura do projeto
@@ -46,6 +46,7 @@ src/
   trench.js              castelo: geometria, buracos, colisão, setores
   physics.js             movimento com inércia, balística, trajetória prevista
   missions.js            tabela das 3 missões + progresso salvo
+  scores.js              pontuação (velocidade, munição, integridade), rank, recordes
   enemies.js             mira balística das torres e tanques inimigos
   menu.js / hud.js       telas e HUD
   sky.js / scenery.js    céu com sol e nuvens; árvores
@@ -235,6 +236,27 @@ Os itens 7 a 10 mudam o visual de propósito, depois dessa validação.
   iluminado.
 - **Progresso:** salvo em `localStorage`, com try/catch: sem armazenamento
   o jogo funciona, só não salva.
+- **Fluxo das telas:**
+  - menu (título animado, câmera orbitando, poeira);
+  - briefing da missão (objetivos e controles; o botão libera em 3 s, e
+    Espaço também começa);
+  - transição com tela preta: 1,5 s escurecendo, com a câmera se
+    aproximando do castelo, e 0,5 s clareando;
+  - missão.
+- **Fim da missão:**
+  - vitória: voo da câmera para o pátio com confete, depois a tela de
+    ranking. "Próxima" abre o briefing seguinte, que começa sozinho em
+    3 s;
+  - derrota: motivo e progresso dos setores, com Tentar de novo /
+    Escolher / Menu.
+- **Pontuação (`scores.js`):** 3 notas de 0 a 1000.
+  - Velocidade: 1000 até metade do tempo de referência, caindo até 0 em
+    2× o tempo.
+  - Munição: tiros mínimos ÷ tiros disparados.
+  - Integridade: saúde restante.
+  - Rank pela porcentagem de 3000: Excelente ≥ 90%, Ótimo ≥ 75%,
+    Bom ≥ 55%, Regular abaixo disso.
+  - Recordes em `mission_N_best_score`, mostrados na tela Scores.
 - **Movimento:**
   - W/S andam (2,4 u/s) e A/D giram (1,5 rad/s), com inércia: lerp de
     0,15 por quadro, independente do fps;
@@ -256,6 +278,7 @@ Os itens 7 a 10 mudam o visual de propósito, depois dessa validação.
 | Entrada 23, depois | Contorno da explosão por `fwidth` | 54 |
 | Entrada 24 | + 60 partículas por explosão + luzes pontuais + som | 53 |
 | Entrada 25 | + fBm, 2 oitavas (3 oitavas davam ~35) | ~41, igual à versão anterior na mesma hora |
+| Entrada 28 | Menu, transições e ranking (só HTML/JS; poeira só no menu) | 30–35 contra 21–25 da versão anterior, na mesma sessão com a máquina lenta: sem perda |
 
 - **Como foi medido:** Chrome com GPU real, janela de 1000×700, em
   navegador isolado (um navegador compartilhado congelava a 2ª janela).

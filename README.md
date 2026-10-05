@@ -67,7 +67,8 @@ index.html        página, HUD e estilos
 docs/DEVELOPMENT_REPORT.md  relatório técnico do desenvolvimento
 src/main.js       WebGPU, pipelines, fluxo menu → missões, entrada e loop do jogo
 src/missions.js   configuração das 3 missões e progresso salvo
-src/menu.js       menu principal, tutorial, créditos, telas de vitória/derrota
+src/scores.js     pontuação, ranking e melhores pontuações (localStorage)
+src/menu.js       menu, briefing, seleção, scores, transições, vitória/derrota
 src/hud.js        HUD: setores, vida, munição, tempo, avisos, minimapa
 src/enemies.js    mira balística das torres e tanques inimigos
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)

@@ -17,6 +17,9 @@ export const MISSIONS = [
     tankHits: 5,               // impactos que o tanque aguenta
     timeLimit: 0,              // 0 = sem limite
     victoryText: "FORTALEZA CONQUISTADA!",
+    difficulty: "Fácil",
+    parTime: 90,               // tempo de referência da pontuação (s)
+    objectives: ["Destruir os 3 setores da fortaleza (Torre esq., Portão, Torre dir.)", "Munição ilimitada, sem contra-ataque"],
   },
   {
     id: 2,
@@ -32,6 +35,9 @@ export const MISSIONS = [
     tankHits: 5,
     timeLimit: 0,
     victoryText: "MISSÃO COMPLETADA! Você conquistou a fortaleza!",
+    difficulty: "Média",
+    parTime: 120,
+    objectives: ["Destruir os 3 setores da fortaleza", "Desviar dos tiros das torres (o tanque aguenta 5 impactos)", "Só 75 tiros"],
   },
   {
     id: 3,
@@ -49,6 +55,9 @@ export const MISSIONS = [
     tankHits: 5,
     timeLimit: 180,
     victoryText: "VOCÊ É O CONQUISTADOR!",
+    difficulty: "Difícil",
+    parTime: 150,
+    objectives: ["Destruir os 3 setores e os 3 tanques inimigos", "As torres preveem o seu movimento", "Completar em 180 segundos, com 100 tiros"],
   },
 ];
 

@@ -1304,3 +1304,121 @@ PROJETO"**: o prompt chegou cortado.
     `TANK_SAMPLES` / `TANK_HEIGHTS` em `trench.js`).
 - **Limitação registrada no relatório:** o roteiro completo das missões
   não foi reexecutado até o fim depois das entradas 24–26.
+
+## 28. Menu épico, transições entre missões e ranking — 05/10/2026 12:17
+
+**Prompt:** "polish final" do menu e do fluxo:
+- menu com título pulsando, câmera girando, poeira, pôr do sol mais
+  dramático e música; botões Começar / M2 / M3 (bloqueados, com aviso) /
+  Tutorial (3 linhas) / Créditos (shader, IAs, professora) / Scores / Sair;
+- briefing por missão com espera de 3 s (Espaço começa);
+- transições com fade 1,5 s / 0,5 s, e vitória → próxima missão
+  automática;
+- ranking com estatísticas, pontuação e rank, recordes em
+  `mission_N_best_score`, tela de scores e derrota com motivo e
+  progresso;
+- confete e sons de vitória, derrota, carregamento e ding.
+
+O pedido dizia "entrada 27", que já era o relatório técnico, então esta é a
+28. A versão anterior, estável, foi marcada com a tag
+`v-estavel-relatorio`.
+
+**Feito:**
+- **`src/scores.js` (novo):**
+  - **Pontos:** Velocidade, Munição e Integridade, de 0 a 1000 cada.
+    - Velocidade: pelo tempo de referência `parTime` da missão.
+    - Munição: tiros mínimos (2 × acertos por setor + portão + tanques) ÷
+      tiros disparados.
+    - Integridade: saúde restante.
+  - **Rank:** Excelente ≥ 90%, Ótimo ≥ 75%, Bom ≥ 55%, Regular.
+  - **Recordes:** só são gravados quando superam o anterior, em
+    `localStorage`, com try/catch.
+- **`src/missions.js`:** dificuldade, `parTime` (90 / 120 / 150 s) e
+  objetivos de cada missão.
+- **`src/menu.js` (reescrito):**
+  - telas novas: briefing, seleção de missão e scores;
+  - o briefing libera o botão após 3 s; Espaço começa e Esc volta;
+  - "Desbloqueado após M1/M2" nos botões travados;
+  - transição com tela preta (`#fader`): 1,5 s escurecendo → troca →
+    0,5 s clareando, bloqueando cliques duplos no meio;
+  - Sair tenta `window.close()`. O navegador só deixa fechar abas abertas
+    por script, então aparece um aviso para fechar com Ctrl+W.
+- **`index.html`:**
+  - título entra de 1,2× para 1,0× e depois "respira" (1,0 ↔ 1,04);
+  - hover dos botões com scale 1,05 e mudança de cor;
+  - telas entram com fade de 0,5 s;
+  - tutorial em 3 linhas;
+  - créditos com as IAs e a professora.
+- **`src/main.js`:**
+  - **Câmera do menu:** se aproxima do castelo durante o fade de saída.
+  - **Poeira:** 70 esferinhas brancas emissivas flutuando no anel da
+    câmera, só no menu. Usam o mesmo pipeline das partículas.
+  - **Vitória:**
+    - som de acorde maior;
+    - confete: 4 rajadas de partículas coloridas, mais lentas
+      (`speedScale` novo no `emit`);
+    - tela de ranking com Próxima / Novo jogo / Menu. Na última missão:
+      campanha completa e soma dos recordes.
+  - **Derrota:** "MISSÃO FALHADA", com motivo, integridade de cada setor,
+    tempo restante (M3) e acorde menor.
+- **`src/explosion-sound.js`:** `playLoading` (arpejo), `playVictory`
+  (Dó maior), `playDefeat` (Lá menor) e `playDing`.
+
+**Não feito / adaptado:**
+- **"Pôr do sol mais dramático, sombras longas":** não mexi. O sol é
+  fixo no shadow map, calculado uma vez, e mudar a direção dele no dia da
+  apresentação arriscaria o visual de tudo (castelo, sombras, buracos).
+- **Música no menu:** já tocava desde a entrada 24, mas o navegador só
+  libera áudio depois do 1º clique ou tecla, então ela não toca na
+  abertura da página.
+- **"Ranking com [PRÓXIMA]" × "próxima missão começa sozinha":** os dois
+  ficaram. A tela de ranking aparece, e "Próxima" leva ao briefing
+  seguinte, que começa sozinho em 3 s.
+- **Nome da professora:** marcado com `<!-- EDITAR -->` nos créditos (não
+  veio no prompt).
+
+**Arquivos:** `src/scores.js` (novo), `src/menu.js`, `src/missions.js`,
+`src/main.js`, `src/explosion-sound.js`, `src/explosion-particles.js`,
+`index.html`, `src/presentation.html`, `README.md`,
+`docs/DEVELOPMENT_REPORT.md`, `docs/ai-log.md`.
+
+**Testes:**
+- **Unitário (Node):**
+  - pontuação perfeita = 3000 (Excelente);
+  - casos intermediários conferidos;
+  - recorde só sobrescreve se maior;
+  - limpar apaga.
+- **Fluxo completo (Playwright, Chrome com GPU):**
+  - **Menu e briefing:**
+    - M2/M3 travadas com o aviso; Sair mostra o aviso;
+    - Scores vazio → Esc volta;
+    - briefing M1: botão travado e Espaço ignorado antes de 3 s,
+      liberado depois;
+    - Espaço → fade (opacidade 0,9 no meio) → missão rodando.
+  - **Vitória na M1:** ranking "MISSÃO 1 CONCLUÍDA!", 2404 pts, Ótimo
+    (80%), NOVO RECORDE, gravado no `localStorage`. "Próxima" → briefing
+    M2 "Começando em 3…" → começou sozinho.
+  - **Derrota na M2:** "MISSÃO FALHADA — Razão: TANQUE DESTRUÍDO", com
+    progresso. "Escolher" → seleção (M1 com recorde, M3 travada).
+  - **Depois:** Scores mostra o recorde da M1; M pausa e retoma.
+  - Sem erros de JavaScript.
+- **Tempo real:**
+  - câmera aproximando no fade;
+  - confete visível no pátio;
+  - poeira no menu;
+  - título numa linha só (na 1ª versão quebrava em duas; corrigido).
+- **Desempenho (missão 3 em combate),** alternando as versões na mesma
+  sessão: nova 30–35 fps, anterior 21–25 fps. Sem perda: a máquina
+  inteira estava mais lenta nesse momento (antes dava ~41).
+
+**Problemas:**
+- **Título quebrava em duas linhas** (largura máxima da tela de 600 px) →
+  `nowrap` no menu.
+- **Confete saía do quadro:** a rajada usava a velocidade das explosões
+  (5–15 u/s) → `speedScale` 0,45.
+- **No teste com relógio virtual,** o confete (setTimeout real) e os
+  quadros (simulados) não ficavam sincronizados → conferido num teste em
+  tempo real.
+- **Os scripts de teste antigos** clicavam direto no botão da missão:
+  `perf24.py` foi ajustado para o briefing, e `missions_check.py` foi
+  substituído pelo teste de fluxo novo.

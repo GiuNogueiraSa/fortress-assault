@@ -61,6 +61,13 @@ export class ExplosionSound {
         volume: -16,
       }).connect(master);
 
+      // efeitos de interface: acordes de vitória/derrota, "carregamento", ding
+      this.fx = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.02, decay: 0.4, sustain: 0.3, release: 1.2 },
+        volume: -10,
+      }).connect(master);
+
       // música ambiente: acordes suaves em triângulo (C – G – Am – Em), volume baixo
       this.music = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: "triangle" },
@@ -106,6 +113,35 @@ export class ExplosionSound {
     const now = window.Tone.now();
     this.warnSynth.triggerAttackRelease("C6", 0.1, now);
     this.warnSynth.triggerAttackRelease("C6", 0.1, now + 0.2);
+  }
+
+  // seleção de missão: arpejo subindo ("carregando")
+  playLoading() {
+    if (!this.initialized) return;
+    const now = window.Tone.now();
+    ["C4", "E4", "G4", "C5"].forEach((n, i) => this.fx.triggerAttackRelease(n, 0.12, now + i * 0.09, 0.6));
+  }
+
+  // vitória: acorde maior (Dó maior), em duas batidas
+  playVictory() {
+    if (!this.initialized) return;
+    const now = window.Tone.now();
+    this.fx.triggerAttackRelease(["C4", "E4", "G4"], 0.25, now);
+    this.fx.triggerAttackRelease(["C4", "E4", "G4", "C5"], 1.4, now + 0.3);
+  }
+
+  // derrota: acorde menor (Lá menor), descendo
+  playDefeat() {
+    if (!this.initialized) return;
+    const now = window.Tone.now();
+    this.fx.triggerAttackRelease(["A3", "C4", "E4"], 0.5, now);
+    this.fx.triggerAttackRelease(["A2", "C3", "E3"], 1.6, now + 0.55);
+  }
+
+  // novo jogo: "ding"
+  playDing() {
+    if (!this.initialized) return;
+    this.fx.triggerAttackRelease(["E6"], 0.3, window.Tone.now(), 0.5);
   }
 
   startAmbientMusic() {

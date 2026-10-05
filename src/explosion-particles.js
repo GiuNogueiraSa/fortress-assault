@@ -75,8 +75,9 @@ export class ParticleEmitter {
   }
 
   // Ativa `count` partículas no ponto `pos` (reaproveita as mais antigas se o pool encher)
-  // tintFn opcional: cor de cada partícula (ex.: lascas de metal de um tanque)
-  emit(pos, count = PARTICLES_PER_EXPLOSION, tintFn = null) {
+  // tintFn opcional: cor de cada partícula (ex.: lascas de metal de um tanque);
+  // speedScale < 1 deixa a rajada mais lenta (confete da vitória)
+  emit(pos, count = PARTICLES_PER_EXPLOSION, tintFn = null, speedScale = 1) {
     const r = this.rand;
     for (let i = 0; i < count; i++) {
       const p = this.pool[this.next];
@@ -84,7 +85,7 @@ export class ParticleEmitter {
       // direção aleatória na meia esfera de cima
       const th = r() * Math.PI * 2, cy = r();
       const sy = Math.sqrt(1 - cy * cy);
-      const speed = SPEED_MIN + r() * (SPEED_MAX - SPEED_MIN);
+      const speed = (SPEED_MIN + r() * (SPEED_MAX - SPEED_MIN)) * speedScale;
       const ax = [r() - 0.5, r() - 0.5, r() - 0.5]; const al = Math.hypot(...ax) || 1;
       const k = r();
       Object.assign(p, {

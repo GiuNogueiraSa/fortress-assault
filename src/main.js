@@ -8,6 +8,7 @@ import {
 } from "./trench.js";
 import { MISSIONS, unlockMission } from "./missions.js";
 import { createMenu } from "./menu.js";
+import { computeScore, rankFor, saveScore, bestScore, MAX_SCORE } from "./scores.js";
 import {
   showHud, setMissionTitle, setSectors, setHP, setAmmo, setTimer, setEnemiesLeft, toast, updateToast, drawMinimap,
 } from "./hud.js";
@@ -283,6 +284,16 @@ async function main() {
   const particleMeshes = buildParticleShapes().map(makeMesh);
   const emitter = new ParticleEmitter(MAX_DEBRIS, particleMeshes.length);
   const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(null, MATERIALS.rock));
+  // Poeira do menu: esferinhas brancas emissivas flutuando ao redor do castelo,
+  // no anel por onde a câmera passa (para ficarem visíveis). Só no menu.
+  const DUST_COUNT = 70;
+  const dust = Array.from({ length: DUST_COUNT }, () => {
+    const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 26;
+    const d = makeDrawable(null, MATERIALS.flash);
+    useMesh(d, particleMeshes[6 + Math.floor(Math.random() * 3)]);   // formas 6–8 = esferas
+    return { d, a, r, y: 0.6 + Math.random() * 13, size: 0.09 + Math.random() * 0.14,
+             drift: (Math.random() - 0.5) * 0.02, phase: Math.random() * 6.28 };
+  });
 
   // Entulho estático no chão (fica até a trincheira ser reconstruída)
   const MAX_RUBBLE = 80;
@@ -431,6 +442,8 @@ async function main() {
   let endTimer = 0;             // espera um pouco antes de mostrar a tela final
   let victoryFly = null;        // animação da câmera entrando no castelo
   let menuAngle = 0;
+  let missionTime = 0;          // segundos jogados na missão (pontuação)
+  let leaving = 0;              // > 0: saindo do menu (câmera aproxima durante o fade)
   window.__game = { state, get trench() { return trench; }, get mode() { return mode; }, get hp() { return hp; },
                     get ammo() { return ammoLeft; }, get enemies() { return enemies; } };
 
@@ -557,7 +570,7 @@ async function main() {
       playerAlive = false;
       blast([state.x, 1.2, state.z], [0, 0, -1], metalTint);
       spawnExplosion([state.x + 0.5, 1.6, state.z - 0.4]);
-      lose("TANQUE DESTRUÍDO — DERROTA");
+      lose("TANQUE DESTRUÍDO");
     }
   }
   function updateEnemies(dt) {
@@ -623,7 +636,8 @@ async function main() {
     towerTimer = 1.5; towerTurn = 0;
     playerHasFired = false; playerAlive = true;
     stats = { shots: 0, damage: 0 };
-    endTimer = 0; victoryFly = null;
+    endTimer = 0; victoryFly = null; pendingEnd = null;
+    missionTime = 0; leaving = 0;
     setMissionTitle(mission.title);
     setStatus(mission.id === 1 ? "Destrua os 3 setores da fortaleza" : "Cuidado: as defesas atiram de volta!", true);
     setHP(1, mission.tankHits > 0 && mission.id > 1);
@@ -642,18 +656,49 @@ async function main() {
   }
   function goMenu() {
     mode = "menu";
+    leaving = 0;
     showHud(false);
     menu.open(false);
   }
-  function lose(text) {
+  // troca de tela com fade (1.5 s escurecendo, 0.5 s clareando)
+  const fadeTo = fn => menu.transition(fn);
+  const retry = () => fadeTo(() => startMission(missionIndex));
+  const toMenu = () => fadeTo(goMenu);
+  const newGame = () => { sound.playDing(); fadeTo(() => { goMenu(); menu.brief(0); }); };
+  const pct = v => `${Math.round(v * 100)}%`;
+  const rowS = (k, v) => `<div class="row-s"><span>${k}</span><b>${v}</b></div>`;
+
+  const LOSE_REASONS = { "MUNIÇÃO": "MUNIÇÃO ACABOU", "TANQUE DESTRUÍDO": "TANQUE DESTRUÍDO", "TEMPO": "TEMPO ESGOTADO" };
+  function lose(reason) {
     if (mode !== "playing") return;
     mode = "defeat";
     endTimer = 1.6;
-    pendingEnd = () => menu.end(text, false, `Tiros: ${stats.shots} · Dano sofrido: ${Math.round(stats.damage * 100)}%`, [
-      { label: "Tentar de novo", primary: true, action: () => startMission(missionIndex) },
-      { label: "Menu", action: goMenu },
-    ]);
+    const integ = sectorIntegrity(trench);
+    let prog = rowS("Torre esq.", pct(integ.left)) + rowS("Portão", pct(integ.gate)) + rowS("Torre dir.", pct(integ.right));
+    if (mission.timeLimit) prog += rowS("Tempo restante", `${Math.max(0, Math.ceil(timeLeft))}s`);
+    const html = `<div style="font-size:15px; margin-bottom:10px">Razão: <b style="color:#ff6b5e">${LOSE_REASONS[reason] || reason}</b></div>
+      <div class="stat-cols" style="grid-template-columns:1fr; max-width:300px; margin:0 auto">
+        <div class="card"><h3>Progresso (integridade restante)</h3>${prog}</div></div>`;
+    pendingEnd = () => {
+      sound.playDefeat();
+      menu.end("MISSÃO FALHADA", false, html, [
+        { label: "Tentar de novo", primary: true, action: retry },
+        { label: "Escolher", action: () => fadeTo(() => { goMenu(); menu.selectMission(); }) },
+        { label: "Menu", action: toMenu },
+      ]);
+    };
   }
+
+  // confete: rajadas de partículas coloridas no pátio durante o voo da vitória
+  const CONFETTI = [[2.0, 0.35, 0.3], [0.35, 1.8, 0.45], [0.45, 0.7, 2.0], [2.0, 1.8, 0.3], [1.8, 0.45, 1.7]];
+  function confetti(at) {
+    [0, 450, 900, 1400].forEach(ms => setTimeout(() => {
+      if (mode !== "victory") return;
+      const pos = [at[0] + (Math.random() - 0.5) * 4, at[1] + 0.3, at[2] + (Math.random() - 0.5) * 3];
+      emitter.emit(pos, 50, () => CONFETTI[Math.floor(Math.random() * CONFETTI.length)], 0.45);
+    }, ms));
+  }
+
   function win() {
     mode = "victory";
     unlockMission(missionIndex + 2);
@@ -662,16 +707,44 @@ async function main() {
     const s = trench.scale;
     victoryFly = { t: 0, from: null, to: [0, 4.2 * s, -11.6 * s], look: [0, 1.0 * s, -15.5 * s] };
     endTimer = 2.4;
+    sound.playVictory();
+    confetti(victoryFly.look);
+
+    // ranking: estatísticas + pontuação (src/scores.js)
+    const m = mission;
+    const sc = computeScore(m, { time: missionTime, shots: stats.shots, hp });
+    const record = saveScore(m.id, sc.total);
+    const rank = rankFor(sc.pct);
+    const hits = Math.round((1 - hp) * m.tankHits);
+    const integ = sectorIntegrity(trench);
+    const sectorsDown = [integ.left, integ.gate, integ.right].filter(v => v <= 0).length;
+    let st = rowS("Tempo", m.timeLimit ? `${Math.round(missionTime)}s / ${m.timeLimit}s` : `${Math.round(missionTime)}s (ref. ${m.parTime}s)`)
+      + rowS("Munição usada", m.ammo === Infinity ? `${stats.shots} / ∞` : `${stats.shots} / ${m.ammo}`)
+      + rowS("Dano", `${hits} / ${m.tankHits} impactos`)
+      + rowS("Setores", `${sectorsDown} / 3 <span class="ok-mark">✓</span>`);
+    if (m.enemyTanks.length) {
+      const k = enemies.filter(e => !e.alive).length;
+      st += rowS("Inimigos", `${k} / ${m.enemyTanks.length} <span class="ok-mark">✓</span>`);
+    }
+    const pts = rowS("Velocidade", `${sc.speed} pts`) + rowS("Munição", `${sc.ammo} pts`)
+      + rowS("Integridade", `${sc.integrity} pts`) + `<div class="row-s total"><span>TOTAL</span><span>${sc.total} pts</span></div>`;
     const last = missionIndex === MISSIONS.length - 1;
-    const lines = [];
-    if (mission.timeLimit) lines.push(`Tempo restante: ${Math.ceil(timeLeft)}s`);
-    if (mission.ammo !== Infinity) lines.push(`Munição restante: ${ammoLeft}`);
-    if (mission.id > 1) lines.push(`Dano sofrido: ${Math.round(stats.damage * 100)}%`);
-    lines.push(`Tiros: ${stats.shots}`);
-    pendingEnd = () => menu.end(mission.victoryText, true, lines.join(" · "), last
-      ? [{ label: "Menu principal", primary: true, action: goMenu }]
-      : [{ label: "Próxima missão", primary: true, action: () => startMission(missionIndex + 1) },
-         { label: "Menu", action: goMenu }]);
+    let campaign = "";
+    if (last) {
+      const total = MISSIONS.reduce((acc, mm) => acc + (bestScore(mm.id)?.score || 0), 0);
+      campaign = `<div style="margin-top:6px">Campanha completa! Soma dos recordes: <b>${total} / ${MAX_SCORE * MISSIONS.length} pts</b> 🏆</div>`;
+    }
+    const html = `<div class="stat-cols">
+        <div class="card"><h3>Estatísticas</h3>${st}</div>
+        <div class="card"><h3>Pontuação</h3>${pts}</div></div>
+      <div class="rank">${rank.stars} RANK: ${rank.label} (${sc.pct}%)</div>
+      ${record ? '<div class="record">NOVO RECORDE!</div>' : ""}${campaign}`;
+    const title = last ? m.victoryText : `MISSÃO ${m.id} CONCLUÍDA!`;
+    pendingEnd = () => menu.end(title, true, html, last
+      ? [{ label: "Novo jogo", primary: true, action: newGame }, { label: "Menu", action: toMenu }]
+      : [{ label: "Próxima", primary: true, action: () => fadeTo(() => menu.brief(missionIndex + 1, true)) },
+         { label: "Novo jogo", action: newGame },
+         { label: "Menu", action: toMenu }]);
   }
   let pendingEnd = null;
 
@@ -686,15 +759,15 @@ async function main() {
     if (mission.timeLimit) {
       timeLeft -= dt;
       if (timeLeft <= 30 && !alertedLowTime) { alertedLowTime = true; sound.playTimeWarning(); toast("30 SEGUNDOS!"); }
-      if (timeLeft <= 0) { lose("TEMPO ESGOTADO — DERROTA"); return; }
+      if (timeLeft <= 0) { lose("TEMPO"); return; }
     }
     const castleDown = integ.left <= 0 && integ.gate <= 0 && integ.right <= 0;
     const enemiesDown = enemies.every(e => !e.alive);
     if (castleDown && enemiesDown) { win(); return; }
-    if (ammoLeft <= 0 && projectiles.length === 0) lose("MUNIÇÃO ACABOU — DERROTA");
+    if (ammoLeft <= 0 && projectiles.length === 0) lose("MUNIÇÃO");
   }
 
-  const menu = createMenu({ onStart: startMission, onResume: resumeGame });
+  const menu = createMenu({ onStart: startMission, onResume: resumeGame, onLeave: () => { leaving = 0.001; }, sound });
   menu.open(false);
   setStatus(usingModel || !USE_MODEL_3D ? "WebGPU ativo" : "Modelo 3D falhou — usando o tanque em caixas (ver console)",
     usingModel || !USE_MODEL_3D);
@@ -725,6 +798,7 @@ async function main() {
     updateToast(dt);
 
     const active = mode === "playing" || mode === "victory" || mode === "defeat";
+    if (mode === "playing") missionTime += dt;
     if (mode === "playing" && playerAlive) {
       if (keys.has("arrowup")) state.aimPitch = Math.min(PITCH_MAX, state.aimPitch + PITCH_SPEED * dt);
       if (keys.has("arrowdown")) state.aimPitch = Math.max(PITCH_MIN, state.aimPitch - PITCH_SPEED * dt);
@@ -756,8 +830,10 @@ async function main() {
     if (mode === "menu") {
       // menu: câmera dá voltas no castelo ao pôr do sol
       menuAngle += dt * 0.07;
-      const c = castleBounds(trench).centerZ;
-      eye = [Math.sin(menuAngle) * 34 * cs, 9 * cs, c + Math.cos(menuAngle) * 34 * cs];
+      if (leaving > 0) leaving = Math.min(1, leaving + dt / 1.5);
+      const z = leaving > 0 ? leaving * leaving * (3 - 2 * leaving) : 0;   // suavizado
+      const c = castleBounds(trench).centerZ, rad = 34 * (1 - 0.45 * z);
+      eye = [Math.sin(menuAngle) * rad * cs, (9 - 4 * z) * cs, c + Math.cos(menuAngle) * rad * cs];
       camLookAt = [0, 5 * cs, c];
     } else if (mode === "victory" && victoryFly) {
       // vitória: voa para dentro do pátio (2 s, suavizado)
@@ -844,6 +920,16 @@ async function main() {
         mat4.multiply(mat4.rotationAxis(q.axis, q.angle), scaleMatrix(q.size))),
         q.tint, 0, ParticleEmitter.opacity(q));
     }
+    if (mode === "menu") {
+      const c = castleBounds(trench).centerZ;
+      for (const q of dust) {
+        q.a += q.drift * dt;
+        const y = q.y + Math.sin(elapsed * 0.4 + q.phase) * 0.6;
+        const pos = [Math.sin(q.a) * q.r * cs, y * cs, c + Math.cos(q.a) * q.r * cs];
+        writeObject(q.d, mat4.multiply(mat4.translation(...pos), scaleMatrix(q.size * cs)),
+          [1.3, 1.25, 1.15], 0, 0.45 + 0.35 * Math.sin(elapsed * 1.3 + q.phase * 3));
+      }
+    }
     for (const e of explosions) {
       const slot = explosionSlots[e.slot];
       const toCam = [eye[0] - e.pos[0], eye[1] - e.pos[1], eye[2] - e.pos[2]];
@@ -923,6 +1009,7 @@ async function main() {
     pass.setPipeline(debrisPipeline);
     pass.setBindGroup(1, sceneBindGroup);
     for (const q of particles) drawObject(pass, debrisPool[q.slot]);
+    if (mode === "menu") for (const q of dust) drawObject(pass, q.d);
     pass.setPipeline(trenchPipeline);
     pass.setBindGroup(1, sceneBindGroup);
     pass.setBindGroup(2, holesBindGroup);

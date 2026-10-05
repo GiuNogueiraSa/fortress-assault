@@ -86,23 +86,32 @@
     transition: opacity .6s;
   }
   #overlay.hidden { opacity: 0; pointer-events: none; }
-  .screen { display: none; text-align: center; max-width: 560px; padding: 20px; }
-  .screen.on { display: block; }
+  .screen { display: none; text-align: center; max-width: 600px; padding: 16px 20px; }
+  .screen.on { display: block; animation: screen-in .5s ease; }
+  @keyframes screen-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   .title {
     font-size: 54px; font-weight: 900; letter-spacing: 0.08em; margin: 0;
     background: linear-gradient(180deg, #fff6c9 0%, #ffd34d 45%, #ff8a3d 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
     text-shadow: 0 6px 30px rgba(255,140,60,0.25);
+    /* entra grande (1.2x → 1.0x) e depois "respira" devagar */
+    animation: title-in 1.4s cubic-bezier(.2,.8,.2,1), title-pulse 3.2s ease-in-out 1.4s infinite alternate;
   }
+  @keyframes title-in { from { transform: scale(1.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes title-pulse { from { transform: scale(1); } to { transform: scale(1.04); } }
+  #scr-menu { max-width: none; }
+  #scr-menu .title { white-space: nowrap; }
   .subtitle { color: #e9e2d6; letter-spacing: 0.25em; text-transform: uppercase; font-size: 12px; margin: 6px 0 26px; }
   .btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
   .btn {
     min-width: 240px; padding: 11px 18px; border-radius: 10px; cursor: pointer;
     border: 1px solid rgba(255,211,77,0.55); background: rgba(10,12,18,0.7); color: var(--text);
     font-weight: 700; letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase;
-    transition: transform .1s, background .15s;
+    transition: transform .15s, background .15s, color .15s;
   }
-  .btn:hover:not(:disabled) { background: rgba(255,211,77,0.18); transform: translateY(-1px); }
+  .btn:hover:not(:disabled) { background: rgba(255,211,77,0.22); color: #ffe9a8; transform: scale(1.05); }
+  .btn.primary:hover:not(:disabled) { color: #1b1206; filter: brightness(1.08); }
+  .btn .lock { display: block; font-size: 9px; letter-spacing: 0.06em; text-transform: none; font-weight: 600; opacity: 0.85; margin-top: 2px; }
   .btn.primary { background: linear-gradient(180deg, #ffd34d, #ff9a3d); color: #1b1206; border: none; }
   .btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .row { display: flex; gap: 10px; justify-content: center; }
@@ -113,7 +122,28 @@
   .big { font-size: 34px; font-weight: 900; letter-spacing: 0.05em; margin: 0 0 10px; }
   .big.win { color: var(--accent); }
   .big.lose { color: var(--warn); }
-  #end-stats { color: var(--muted); margin-bottom: 18px; font-size: 13px; }
+  #end-stats { color: var(--muted); margin-bottom: 14px; font-size: 13px; }
+  /* briefing, ranking e scores */
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .chip.d1 { background: #2f9e5b; } .chip.d2 { background: #c98a12; } .chip.d3 { background: #c0392b; }
+  .card ul { margin: 4px 0 10px; padding-left: 18px; }
+  .card .grid2 { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+  .stat-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+  .stat-cols .card { padding: 10px 14px; font-size: 12.5px; line-height: 1.7; }
+  .stat-cols h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; }
+  .stat-cols .row-s { display: flex; justify-content: space-between; gap: 10px; }
+  .stat-cols .row-s b { color: var(--text); }
+  .stat-cols .total { border-top: 1px solid rgba(255,255,255,.15); margin-top: 4px; padding-top: 4px; font-weight: 800; color: var(--accent); }
+  .rank { font-size: 20px; font-weight: 900; letter-spacing: .08em; margin: 12px 0 4px; color: var(--accent); }
+  .record { color: #7dffb0; font-weight: 800; font-size: 12px; letter-spacing: .1em; }
+  .ok-mark { color: #7dffb0; }
+  #scores-list .m { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  #scores-list .m:last-child { border-bottom: 0; }
+  #brief-countdown { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 16px; }
+  #exit-msg { color: var(--muted); font-size: 12px; min-height: 16px; margin-top: 10px; }
+  /* tela preta das transições (fade out → troca → fade in) */
+  #fader { position: absolute; inset: 0; border-radius: 12px; background: #000; opacity: 0; pointer-events: none; z-index: 5; }
+  #fader.blocking { pointer-events: auto; }
   #fallback { max-width: 440px; text-align: center; padding: 28px; background: var(--panel); border-radius: 14px; display: none; }
   #fallback h2 { color: var(--warn); margin-top: 0; }
 </style>
@@ -157,26 +187,72 @@
           <h1 class="title">FORTRESS ASSAULT</h1>
           <div class="subtitle">Computação Gráfica — FECAP · WebGPU</div>
           <div class="btns">
+            <button class="btn" id="btn-resume" style="display:none">Continuar</button>
             <button class="btn primary" id="btn-start">Começar jogo</button>
             <div class="row">
-              <button class="btn" id="btn-m2">Missão 2</button>
-              <button class="btn" id="btn-m3">Missão 3</button>
+              <button class="btn" id="btn-m2">Missão 2<span class="lock" id="lock-m2"></span></button>
+              <button class="btn" id="btn-m3">Missão 3<span class="lock" id="lock-m3"></span></button>
             </div>
-            <button class="btn" id="btn-resume" style="display:none">Continuar</button>
-            <button class="btn" id="btn-tutorial">Tutorial</button>
-            <button class="btn" id="btn-credits">Créditos</button>
+            <div class="row">
+              <button class="btn" id="btn-tutorial">Tutorial</button>
+              <button class="btn" id="btn-credits">Créditos</button>
+            </div>
+            <div class="row">
+              <button class="btn" id="btn-scores">Scores</button>
+              <button class="btn" id="btn-exit">Sair</button>
+            </div>
+          </div>
+          <div id="exit-msg"></div>
+        </div>
+
+        <div class="screen" id="scr-brief">
+          <div class="big" id="brief-title" style="margin-bottom:4px">MISSÃO 1</div>
+          <div style="margin-bottom:10px">Dificuldade: <span class="chip d1" id="brief-diff">Fácil</span></div>
+          <div class="card">
+            <h2>Objetivos</h2>
+            <ul id="brief-objectives"></ul>
+            <h2>Controles</h2>
+            <div class="grid2">
+              <kbd>↑ / ↓</kbd><span>Elevar / abaixar o cano</span>
+              <kbd>Mouse</kbd><span>Girar a câmera 360° (clique no jogo para travar)</span>
+              <kbd>W/S/A/D</kbd><span>Mover o tanque</span>
+              <kbd>Espaço</kbd><span>Atirar</span>
+              <kbd>M</kbd><span>Menu (pausa) · <kbd>Esc</kbd> volta</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="btn primary" id="btn-brief-go" disabled>Começar missão</button>
+            <button class="btn" id="btn-brief-back">Voltar</button>
+          </div>
+          <div id="brief-countdown"></div>
+        </div>
+
+        <div class="screen" id="scr-select">
+          <div class="big">ESCOLHER MISSÃO</div>
+          <div class="btns">
+            <button class="btn" data-mission="0">Missão 1 · Fácil<span class="lock"></span></button>
+            <button class="btn" data-mission="1">Missão 2 · Média<span class="lock"></span></button>
+            <button class="btn" data-mission="2">Missão 3 · Difícil<span class="lock"></span></button>
+            <button class="btn" data-back style="margin-top:6px">Voltar</button>
+          </div>
+        </div>
+
+        <div class="screen" id="scr-scores">
+          <div class="big">MELHORES PONTUAÇÕES</div>
+          <div class="card" id="scores-list"></div>
+          <div class="rank" id="scores-total"></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" id="btn-scores-clear">Limpar scores</button>
+            <button class="btn" data-back>Voltar</button>
           </div>
         </div>
 
         <div class="screen" id="scr-tutorial">
           <div class="card">
             <h2>Tutorial</h2>
-            <div><kbd>W</kbd>/<kbd>S</kbd> andar (com inércia) · <kbd>A</kbd>/<kbd>D</kbd> girar o tanque</div>
-            <div><kbd>↑</kbd>/<kbd>↓</kbd> elevação do cano · <kbd>Espaço</kbd> atirar (a linha mostra a trajetória)</div>
-            <div>Mouse (clique no jogo para travar): câmera 360° ao redor do tanque</div>
-            <div><kbd>M</kbd> abre este menu (pausa). <kbd>N</kbd> liga/desliga a música. <kbd>Esc</kbd> solta o mouse.</div>
-            <div style="margin-top:8px">Destrua os 3 setores (Torre esq., Portão, Torre dir.) para conquistar a fortaleza.
-              Na missão 2 as torres atiram de volta e a munição é limitada; na 3 há tanques inimigos e tempo.</div>
+            <div><kbd>W</kbd>/<kbd>S</kbd> andar · <kbd>A</kbd>/<kbd>D</kbd> girar · <kbd>↑</kbd>/<kbd>↓</kbd> cano · <kbd>Espaço</kbd> atirar</div>
+            <div>Mouse: câmera 360° (clique no jogo para travar) · <kbd>M</kbd> menu · <kbd>N</kbd> música · <kbd>Esc</kbd> solta o mouse</div>
+            <div>Destrua os 3 setores (Torre esq., Portão, Torre dir.) para conquistar a fortaleza.</div>
           </div>
           <div class="btns" style="margin-top:14px"><button class="btn" data-back>Voltar</button></div>
         </div>
@@ -189,7 +265,9 @@
             <div>Tanque: modelo "Tank" de Willy Decarpentrie (Sketchfab) — CC BY 4.0.</div>
             <div>Renderização: WebGPU + WGSL (iluminação, sombras, castelo e efeitos procedurais).</div>
             <div>Som: Tone.js (MIT), síntese em tempo real.</div>
-            <div>Desenvolvido com apoio de IA (Claude Code) — processo em docs/ai-log.md.</div>
+            <div>IAs: Claude Code (desenvolvimento), Gemini e ChatGPT (comparação) — processo em docs/ai-log.md.</div>
+            <!-- EDITAR: nome da professora -->
+            <div>Professora: [nome da professora] — Computação Gráfica, FECAP.</div>
           </div>
           <div class="btns" style="margin-top:14px"><button class="btn" data-back>Voltar</button></div>
         </div>
@@ -200,6 +278,7 @@
           <div class="row" id="end-btns"></div>
         </div>
       </div>
+      <div id="fader"></div>
 
       <div id="fallback">
         <h2>WebGPU não disponível</h2>
