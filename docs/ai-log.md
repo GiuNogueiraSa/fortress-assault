@@ -1788,3 +1788,19 @@ Pages? É preciso alterar algo no documento da apresentação?"
 
 **Testes:** slides sem estouro de layout no desktop e no celular; o contador
 de entradas lê 36 do log.
+
+## 38. Envio de tudo para o GitHub — 05/10/2026 17:44
+
+**Prompt:** "suba tudo para o git então".
+
+**Feito:**
+- `git push origin main`: `3d6e686..bc0f388`, os 7 commits das entradas
+  31 a 37.
+- `git push origin --tags`: as tags novas `v-estavel-readme` e
+  `v-estavel-testes`. O GitHub fica com as 7 tags `v-estavel-*`.
+- **Conferido:** `main` local igual a `origin/main`.
+- Este registro foi enviado num commit separado logo depois.
+- **Pendente (só pela interface do GitHub):** ativar o GitHub Pages em
+  Settings → Pages → `main` / `(root)`.
+
+**Arquivos:** `docs/ai-log.md`.
