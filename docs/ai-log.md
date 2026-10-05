@@ -1987,3 +1987,17 @@ versões anteriores (HUD sem Q/E, por exemplo).
 **Problema:** no celular as imagens da galeria se sobrepunham (as linhas do
 grid encolhiam com `flex: 1` dentro do slide de altura fixa). Corrigido
 com `flex: none` e `aspect-ratio` nas imagens na regra mobile.
+
+## 45. Nomes do grupo nos slides — 05/10/2026 19:58
+
+**Prompt:** colocar o nome dos integrantes: Giulia, Marco, Ruan, Rafael,
+Pedro e Yasmin.
+
+**Feito:** "Giulia e grupo" trocado pelos seis nomes na capa e nos
+créditos; removidos os comentários `EDITAR: nomes do grupo` (pendência das
+entradas anteriores resolvida).
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:** capa e créditos conferidos em 1600×900 e 400×800; os nomes
+cabem em uma linha nos dois tamanhos.
