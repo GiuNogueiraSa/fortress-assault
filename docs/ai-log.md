@@ -1422,3 +1422,30 @@ O pedido dizia "entrada 27", que já era o relatório técnico, então esta é a
 - **Os scripts de teste antigos** clicavam direto no botão da missão:
   `perf24.py` foi ajustado para o briefing, e `missions_check.py` foi
   substituído pelo teste de fluxo novo.
+
+## 29. Nome do professor nos créditos — 05/10/2026 12:25
+
+**Prompt:** trocar o marcador do nome nos créditos do jogo (`index.html`) e
+no slide 10 (`src/presentation.html`) por "Professor: Adriano Felix
+Valente", testar as duas telas e commitar.
+
+**Feito:**
+- **`index.html`, créditos do jogo:** "Professora: [nome da professora]"
+  → "Professor: Adriano Felix Valente — Computação Gráfica, FECAP". O
+  comentário `<!-- EDITAR -->` desse trecho foi removido.
+- **`src/presentation.html`, slide 10:** "Professor(a): [nome]" →
+  "Professor: Adriano Felix Valente". O comentário ficou só para os
+  nomes do grupo, que continuam como "Giulia e grupo".
+- O HTML real era um pouco diferente do trecho do pedido (`<div>` e
+  `<li>`, não `<p>`). A estrutura existente foi mantida e só o texto foi
+  trocado.
+
+**Arquivos:** `index.html`, `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes (Playwright, Chrome):**
+- Créditos do jogo: "Professor: Adriano Felix Valente — Computação
+  Gráfica, FECAP."
+- Slide 10/10: "Professor: Adriano Felix Valente".
+- Sem erros de JavaScript.
+
+**Problemas:** nenhum.
