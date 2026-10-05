@@ -132,6 +132,51 @@
 
   /* casos de erro → correção */
   .cases { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7em; }
+  /* comparação de prompts: o prompt como janela de chat */
+  .prompt { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 14px 40px rgba(0,0,0,.4); background: #10111f; font-size: .78em; align-self: start; }
+  .prompt-head { display: flex; align-items: center; gap: .4em; padding: .55em .8em; background: #1a1c36; border-bottom: 1px solid var(--line); }
+  .prompt-head .dot { width: .65em; height: .65em; border-radius: 50%; background: var(--red); }
+  .prompt-head .dot:nth-child(2) { background: var(--yellow); } .prompt-head .dot:nth-child(3) { background: var(--green); }
+  .prompt-head b { margin-left: .5em; } .prompt-head .tiny { margin-left: auto; }
+  .prompt-body { padding: .8em 1em; line-height: 1.4; border-left: 3px solid var(--yellow); margin: .7em; background: rgba(255,210,63,.05); border-radius: 0 8px 8px 0; }
+  .prompt-body p { margin: 0 0 .5em; } .prompt-body .muted { color: var(--muted); }
+  .prompt-body ol { margin: 0; padding-left: 1.3em; } .prompt-body li { margin: .25em 0; }
+  .code-stub { font-family: Consolas, monospace; font-size: .85em; color: var(--yellow); background: var(--panel-2); padding: .35em .6em; border-radius: 6px; margin: 0 0 .6em; }
+  .steps { margin: 0; padding-left: 1.3em; } .steps li { margin: .3em 0; }
+
+  /* comparação de prompts: uma coluna por IA */
+  .ais { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9em; }
+  .ai { --c: var(--blue-soft); border-radius: 14px; border: 1px solid var(--line); border-top: 4px solid var(--c); padding: .65em .85em; font-size: .68em;
+        background: radial-gradient(120% 50% at 50% 0%, color-mix(in srgb, var(--c) 14%, transparent), transparent 60%), linear-gradient(180deg, rgba(39,42,82,.92), rgba(27,29,58,.92));
+        box-shadow: 0 10px 30px rgba(0,0,0,.3); display: flex; flex-direction: column; gap: .5em; }
+  .ai-claude { --c: #ff8a1f; } .ai-gemini { --c: #8fb0ff; } .ai-gpt { --c: #4fd18b; }
+  .ai-head { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
+  .ai-head b { font-size: 1.5em; color: var(--c); }
+  .verdict { font-size: .8em; font-weight: 800; padding: .2em .6em; border-radius: 99px; }
+  .verdict.good { background: var(--green); color: #0b2416; } .verdict.ok-v { background: rgba(79,209,139,.18); color: var(--green); border: 1px solid var(--green); }
+  .verdict.bad-v { background: rgba(255,90,79,.18); color: var(--red); border: 1px solid var(--red); }
+  .metric { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 0 .5em; }
+  .metric .big { font-size: 1.9em; font-weight: 800; color: var(--text); }
+  .metric span:not(.big) { color: var(--muted); }
+  .metric .bar { grid-column: 1 / -1; height: .45em; border-radius: 99px; background: rgba(255,255,255,.08); margin-top: .25em; overflow: hidden; }
+  .metric .bar i { display: block; height: 100%; min-width: .45em; border-radius: 99px; background: var(--c); }
+  .ai-gemini .metric .bar i { background: var(--red); }
+  .ai ul { margin: 0; padding-left: 0; list-style: none; }
+  .ai li { margin: .25em 0; padding-left: 1.3em; position: relative; line-height: 1.33; }
+  .ai .pros li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+  .ai .cons li::before { content: "✗"; position: absolute; left: 0; color: var(--red); font-weight: 800; }
+  .ai blockquote { margin: 0; padding: .45em .6em; border-left: 3px solid var(--red); background: rgba(255,90,79,.08); border-radius: 0 8px 8px 0; font-style: italic; }
+  .ai blockquote span { display: block; font-style: normal; color: var(--red); font-weight: 600; margin-top: .15em; }
+  .ai blockquote.good-q { border-left-color: var(--green); background: rgba(79,209,139,.08); }
+  .ai blockquote.good-q span { color: var(--green); }
+  .pix { padding: .35em .9em .2em; font-size: .7em; align-self: stretch; }
+  .takeaway .btn { white-space: nowrap; }
+  .pix-title { color: var(--muted); font-weight: 700; font-size: .85em; letter-spacing: .04em; }
+  .pix table { font-size: 1em; } .pix th, .pix td { padding: .18em .6em; text-align: center; } .pix td:first-child, .pix th:first-child { text-align: left; font-weight: 700; }
+  .takeaway { display: flex; align-items: center; gap: .8em; padding: .5em 1em; border-radius: 12px; font-size: .78em;
+              background: linear-gradient(90deg, rgba(255,210,63,.14), rgba(255,138,31,.06)); border: 1px solid rgba(255,210,63,.45); }
+  .takeaway .btn { margin-left: auto; }
+
   /* cada caso tem sua cor (--c): faixa no topo, número e brilho */
   .case {
     --c: var(--orange);
@@ -212,7 +257,7 @@
     }
     h1 { font-size: 2.4em; }
     .cover h1 { font-size: 2.6em; }
-    .body, .cols-2, .cols-32, .cases, .gallery { grid-template-columns: 1fr !important; }
+    .body, .cols-2, .cols-32, .cases, .gallery, .ais { grid-template-columns: 1fr !important; }
     .gallery { grid-template-rows: none; flex: none; }
     .gallery img { flex: none; height: auto; aspect-ratio: 900 / 560; }
     .stats { flex-direction: column; }
@@ -441,36 +486,101 @@
     </div>
   </section>
 
-  <!-- 5. Comparação entre IAs -->
+  <!-- 5a. Comparação de prompts: o experimento -->
   <section class="slide" style="--bg-img:url('../assets/slides/jogo-briefing.jpg')">
-    <div class="kicker">Comparação</div>
-    <h2>Comparação entre IAs</h2>
-    <p class="sub">Claude vs Gemini vs ChatGPT: mesmo prompt (converter o shader para WGSL), código compilado e testado</p>
-    <div class="body cols-32">
-      <div class="card" style="padding:.3em .6em">
+    <div class="kicker">Comparação de prompts · 1/2</div>
+    <h2>O mesmo prompt em 3 IAs</h2>
+    <p class="sub">Claude, Gemini e ChatGPT receberam o mesmo pedido: converter o shader de explosão de GLSL para WGSL</p>
+    <div class="body cols-2">
+      <div class="prompt">
+        <div class="prompt-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><b>Prompt enviado</b><span class="tiny">igual para as 3 IAs</span></div>
+        <div class="prompt-body">
+          <p class="muted">Tenho este shader de explosão, originalmente publicado no Shadertoy (X3dGz2), nesta versão portada para a Godot, licença CC BY-NC-SA 3.0:</p>
+          <div class="code-stub">shader_type canvas_item; … <i>(~200 linhas de GLSL)</i></div>
+          <p>Preciso adaptar esse shader para <b>WGSL</b> (linguagem de shaders do WebGPU), para usar como efeito de explosão num jogo 3D, aplicado sobre um quad voltado para a câmera, posicionado no ponto de impacto de um projétil.</p>
+          <p>Por favor:</p>
+          <ol>
+            <li>Converta para WGSL, removendo as partes específicas do Godot e mantendo o efeito visual o mais parecido possível.</li>
+            <li>Explique as principais mudanças de sintaxe/conceito entre GLSL e WGSL.</li>
+            <li>Indique como eu passaria o tempo e a posição do impacto como uniforms numa aplicação WebGPU em JavaScript.</li>
+          </ol>
+        </div>
+      </div>
+      <div style="display:grid; gap:.7em; align-content:start">
+        <div class="card small">
+          <h3>Como comparamos (sem confiar só na leitura)</h3>
+          <ol class="steps">
+            <li><b>Código extraído sem alterações</b> das 3 respostas (<code>docs/Resposta 1 *.txt</code>)</li>
+            <li><b>Compilado no Chrome</b> com WebGPU (<code>getCompilationInfo()</code>)</li>
+            <li><b>Executado ao lado do GLSL original</b> (WebGL2), mesmos parâmetros, em 5 instantes da animação</li>
+            <li><b>% de pixels diferentes</b> do original medida em cada instante</li>
+            <li><b>Afirmações da explicação</b> testadas compilando trechos mínimos de WGSL</li>
+          </ol>
+        </div>
+        <div class="card small">
+          <h3>Condições</h3>
+          Claude Code trabalhou dentro do projeto, com ferramentas para compilar e testar; Gemini e ChatGPT responderam só no chat. Por isso a comparação olha <b>o shader convertido</b>, e não a integração ao jogo.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5b. Comparação de prompts: resultados -->
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-briefing.jpg')">
+    <div class="kicker">Comparação de prompts · 2/2</div>
+    <h2>Claude × Gemini × ChatGPT: mesmo prompt</h2>
+    <p class="sub">O que cada IA entregou para o prompt anterior, medido rodando o código e comparando pixel a pixel com o shader original</p>
+    <div class="body" style="display:flex; flex-direction:column; gap:.6em">
+      <div class="ais">
+        <div class="ai ai-claude">
+          <div class="ai-head"><b>Claude</b><span class="verdict good">Recomendado</span></div>
+          <div class="metric"><span class="big">≤ 0,03%</span><span>pixels diferentes</span><div class="bar"><i style="width:1%"></i></div></div>
+          <ul class="pros">
+            <li>Compila e roda de primeira</li>
+            <li>Fez o vertex shader do billboard e o buffer de 112 bytes</li>
+            <li>Protegeu divisão por zero em <code>t = 0</code></li>
+            <li><b>Único que testou</b> o resultado contra o original</li>
+          </ul>
+          <ul class="cons"><li>Disse que <code>repeat</code> e <code>point</code> eram palavras reservadas: falso</li></ul>
+        </div>
+        <div class="ai ai-gemini">
+          <div class="ai-head"><b>Gemini</b><span class="verdict bad-v">Precisa revisão</span></div>
+          <div class="metric"><span class="big">12–31%</span><span>pixels diferentes</span><div class="bar"><i style="width:100%"></i></div></div>
+          <ul class="pros"><li>Deixou os parâmetros ajustáveis por uniform</li></ul>
+          <ul class="cons">
+            <li><b>Buffer rejeitado pelo WebGPU</b>: 192 bytes para uma struct de 208</li>
+            <li>Explosão com metade do tamanho e sem o contorno preto</li>
+            <li>Sem vertex shader nem posição 3D do impacto</li>
+          </ul>
+          <blockquote>“Literais flutuantes exigem ponto decimal (1.0 em vez de 1.)” <span>→ falso: <code>1.</code> compila</span></blockquote>
+        </div>
+        <div class="ai ai-gpt">
+          <div class="ai-head"><b>ChatGPT</b><span class="verdict ok-v">Alternativa válida</span></div>
+          <div class="metric"><span class="big">≤ 0,03%</span><span>pixels diferentes</span><div class="bar"><i style="width:1%"></i></div></div>
+          <ul class="pros">
+            <li>Compila e roda (com aspect = 1)</li>
+            <li><b>Explicação mais didática</b>: antes → depois e diagramas</li>
+            <li>Uniforms bem separados (efeito × câmera)</li>
+          </ul>
+          <ul class="cons">
+            <li>Proporção pelo canvas achata a explosão no quad</li>
+            <li>Não disse como tratar a transparência (blending)</li>
+          </ul>
+          <blockquote class="good-q">“posição do impacto no mundo 3D → responsabilidade do vertex shader; pos 2D e tempo → usados pelo fragment shader” <span>→ separação correta e bem explicada</span></blockquote>
+        </div>
+      </div>
+      <div class="card pix">
+        <span class="pix-title">Pixels diferentes do original, por instante da animação</span>
         <table>
-          <tr><th>Aspecto</th><th>Claude</th><th>Gemini</th><th>ChatGPT</th></tr>
-          <tr><td>Compila o WGSL</td><td class="ok">✅ Sim</td><td class="ok">✅ Sim</td><td class="ok">✅ Sim</td></tr>
-          <tr><td>Funciona como descrito</td><td class="ok">✅ Sim</td><td class="bad">❌ Não<div class="tiny">buffer de 192 B, struct exige 208</div></td><td class="ok">✅ Sim<div class="tiny">com aspect = 1</div></td></tr>
-          <tr><td>Pixels diferentes do GLSL</td><td class="ok">≤ 0,03%</td><td class="bad">12–31%</td><td class="ok">≤ 0,03%</td></tr>
-          <tr><td>Explicação</td><td class="ok">Boa</td><td class="bad">Fraca<div class="tiny">2 afirmações falsas</div></td><td class="ok">Ótima</td></tr>
-          <tr><td>Testou o próprio resultado</td><td class="ok">✅ Sim (único)</td><td class="bad">❌ Não</td><td class="bad">❌ Não</td></tr>
+          <tr><th>t</th><th>0,15 s</th><th>0,35 s</th><th>0,60 s</th><th>0,90 s</th><th>1,20 s</th></tr>
+          <tr><td style="color:#ff8a1f">Claude</td><td>0,00%</td><td>0,00%</td><td>0,02%</td><td>0,03%</td><td>0,00%</td></tr>
+          <tr><td style="color:#8fb0ff">Gemini</td><td class="bad">21,15%</td><td class="bad">31,45%</td><td class="bad">20,96%</td><td class="bad">11,61%</td><td class="bad">1,19%</td></tr>
+          <tr><td style="color:#4fd18b">ChatGPT</td><td>0,00%</td><td>0,00%</td><td>0,02%</td><td>0,03%</td><td>0,00%</td></tr>
         </table>
       </div>
-      <div style="display:grid; gap:.8em; align-content:start">
-        <div class="card">
-          <h3>Conclusão</h3>
-          <ul>
-            <li><b>Claude:</b> recomendado, porque compila, roda e compara antes de entregar</li>
-            <li><b>ChatGPT:</b> alternativa válida e a explicação mais didática</li>
-            <li><b>Gemini:</b> precisa de revisão cuidadosa</li>
-          </ul>
-        </div>
-        <div class="card tiny">
-          Limitações: uma tarefa, uma resposta de cada IA; o Claude tinha acesso ao projeto e a ferramentas de teste.
-          A análise foi escrita pelo Claude, por isso tudo foi verificado executando o código.
-        </div>
-        <div><a class="btn primary" href="../docs/analise-ias.md" target="_blank" rel="noopener">Ver docs/analise-ias.md ↗</a></div>
+      <div class="takeaway">
+        <span><b>Conclusão:</b> Claude e ChatGPT empataram no shader; o Gemini errou justamente no que só aparece ao rodar. O fator decisivo foi <b>testar antes de usar</b>.</span>
+        <a class="btn primary" href="../docs/analise-ias.md" target="_blank" rel="noopener">Análise completa ↗</a>
       </div>
     </div>
   </section>

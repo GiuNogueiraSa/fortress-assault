@@ -2132,3 +2132,33 @@ algum".
 **Problema:** a 1ª versão da nota citava `trench.js` como arquivo de
 shader; a busca mostrou que o shader do castelo fica em `lighting.js`
 → corrigido.
+
+## 50. Comparação de prompts entre IAs em destaque — 05/10/2026 21:20
+
+**Prompts:** (1) "tem que mostrar bem a comparação de prompts em IA";
+(2) no meio do trabalho: "tem a do GPT também, faça um slide só de
+comparação das 3 IAs pro mesmo prompt".
+
+**Feito:** o antigo slide de comparação (só uma tabela) virou dois:
+- **"O mesmo prompt em 3 IAs" (1/2):** o prompt real, copiado de
+  `docs/Resposta 1 ChatGPT.txt` (igual ao do Gemini), numa janela de chat
+  (o código GLSL de ~200 linhas resumido), e ao lado o método: código
+  extraído sem alterações, compilado no Chrome, executado ao lado do GLSL
+  original em 5 instantes, % de pixels medida, afirmações testadas; mais
+  as condições diferentes de cada IA.
+- **"Claude × Gemini × ChatGPT: mesmo prompt" (2/2):** uma coluna por IA
+  com veredito, % de pixels diferentes com barra, acertos (✓), erros (✗) e
+  citações da própria resposta: a afirmação falsa do Gemini sobre `1.` e a
+  explicação do ChatGPT sobre vertex × fragment. Embaixo, a tabela de
+  pixels por instante (0,15 a 1,20 s) e a conclusão.
+- Todos os dados vêm de `docs/analise-ias.md`.
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:** capturas em 1600×900, 1366×768 e 400×800; agora são 12
+slides.
+
+**Problemas:** (1) a tabela cobria a conclusão (grade com 3 linhas `auto`
+sem altura suficiente) → coluna flex e cartões mais compactos; (2) o texto
+da conclusão se partia em pedaços (vários nós de texto dentro do flex) →
+envolvido num `<span>`.
