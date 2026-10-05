@@ -53,26 +53,26 @@ export const MATERIALS = {
 
 // Uniform por objeto (192 bytes):
 //   mvp (0) | model (64) | material (128) | camPos+noiseScale (144)
-//   | extra (160): padrão, tinta rgb | look (176): rim, opacidade
+//   | extra (160): padrão, tinta rgb | look (176): rim, opacidade, dano (0..1)
 export const OBJECT_UNIFORM_BYTES = 192;
-export function objectUniformData(viewProj, model, material, camPos, tint = [1, 1, 1], pattern = material.pattern, opacity = 1) {
+export function objectUniformData(viewProj, model, material, camPos, tint = [1, 1, 1], pattern = material.pattern, opacity = 1, damage = 0) {
   const d = new Float32Array(OBJECT_UNIFORM_BYTES / 4);
   d.set(mat4.multiply(viewProj, model), 0);
   d.set(model, 16);
   d.set([material.spec, material.shininess, material.noise, material.emissive], 32);
   d.set([camPos[0], camPos[1], camPos[2], material.noiseScale], 36);
   d.set([pattern, tint[0], tint[1], tint[2]], 40);
-  d.set([material.rim, opacity, 0, 0], 44);
+  d.set([material.rim, opacity, damage, 0], 44);
   return d;
 }
 
 // Uniform da cena (grupo 1): matriz do sol, clarão da explosão e parâmetros
 export const SCENE_UNIFORM_BYTES = 96;
-export function sceneUniformData(lightVP, flashPos, flashIntensity) {
+export function sceneUniformData(lightVP, flashPos, flashIntensity, castleScale = 1, ivyBoost = 0, yardGlow = 0) {
   const d = new Float32Array(SCENE_UNIFORM_BYTES / 4);
   d.set(lightVP, 0);
   d.set([flashPos[0], flashPos[1], flashPos[2], flashIntensity], 16);
-  d.set([1 / SHADOW_MAP_SIZE, 0, 0, 0], 20);
+  d.set([1 / SHADOW_MAP_SIZE, castleScale, ivyBoost, yardGlow], 20);
   return d;
 }
 
@@ -83,7 +83,7 @@ struct Uniforms {
   material: vec4f,   // x: especular, y: expoente, z: ruído, w: emissivo
   camPos: vec4f,     // xyz: câmera, w: escala do ruído
   extra: vec4f,      // x: padrão, yzw: tinta
-  look: vec4f,       // x: rim, y: opacidade
+  look: vec4f,       // x: rim, y: opacidade, z: dano (marcas de queimado no tanque)
 };
 @group(0) @binding(0) var<uniform> u: Uniforms;
 `;
@@ -131,7 +131,7 @@ ${OBJECT_STRUCT}
 struct Scene {
   lightVP: mat4x4f,
   flash: vec4f,      // xyz: posição do clarão, w: intensidade
-  params: vec4f,     // x: tamanho do texel do shadow map
+  params: vec4f,     // x: texel do shadow map, y: escala do castelo, z: reforço de hera, w: brilho do pátio (vitória)
 };
 @group(1) @binding(0) var<uniform> scene: Scene;
 @group(1) @binding(1) var shadowMap: texture_depth_2d;
@@ -231,9 +231,9 @@ fn shadeFull(in: VertexOut, baseColor: vec3f, normalIn: vec3f, specK: f32, shin:
   let fill = max(dot(N, F), 0.0) * 0.6 + 0.4;   // céu ilumina quase tudo, mais por cima
   let H = normalize(L + V);
   let spec = pow(max(dot(N, H), 0.0), shin) * specK * step(0.0, dot(N, L)) * shadow;
-  let warm = yardWarmth(in.worldPos);
+  let warm = yardWarmth(in.worldPos / scene.params.y);   // pátio na escala do castelo
   // no pátio: luz ambiente quente e forte (claro mesmo onde a sombra das muralhas cai)
-  let ambient = mix(mix(GROUND_AMBIENT, SKY_AMBIENT, 0.5 + 0.5 * N.y), YARD_AMBIENT * 0.9, warm);
+  let ambient = mix(mix(GROUND_AMBIENT, SKY_AMBIENT, 0.5 + 0.5 * N.y), YARD_AMBIENT * (0.9 + 0.9 * scene.params.w), warm);
   let sunCol = mix(LIGHT_COLOR, YARD_LIGHT * 1.3, warm);
   // clarão da explosão: luz pontual laranja que some em ~0.12 s
   let toF = scene.flash.xyz - in.worldPos;
@@ -268,14 +268,44 @@ fn cellF1(p: vec3f) -> f32 {
   return best;
 }
 
-const JAGUAR_SPOT = vec3f(0.40, 0.20, 0.05);
+// Onça: pintas PRETAS lisas (círculos/ovais), uma em parte das células de
+// Voronoi (id sorteado), borda nítida. ~18 no casco e ~10 na torre.
+const JAGUAR_SPOT = vec3f(0.08, 0.08, 0.08);
+fn cellSpot(p: vec3f) -> vec2f {   // x: distância ao ponto da célula, y: id da célula
+  let ip = floor(p);
+  let fp = fract(p);
+  var best = 9.0;
+  var id = 0.0;
+  for (var z = -1; z <= 1; z++) {
+    for (var y = -1; y <= 1; y++) {
+      for (var x = -1; x <= 1; x++) {
+        let o = vec3f(f32(x), f32(y), f32(z));
+        let c = ip + o;
+        let pt = 0.25 + 0.5 * fract(n_rand3(c));
+        let d = length((o + pt - fp) * vec3f(1.0, 1.25, 1.0));   // levemente oval
+        if (d < best) {
+          best = d;
+          id = fract(sin(dot(c, vec3f(12.9898, 78.233, 37.719))) * 43758.5453);
+        }
+      }
+    }
+  }
+  return vec2f(best, id);
+}
 fn jaguar(base: vec3f, p: vec3f) -> vec3f {
-  let q = p * 3.4;
-  let d = cellF1(q) + 0.10 * noise(q * 2.3);
-  let ring = smoothstep(0.31, 0.285, d) * smoothstep(0.07, 0.095, d);
-  let core = smoothstep(0.10, 0.075, d);
-  let c = mix(base, base * vec3f(0.80, 0.55, 0.28), core * 0.9);
-  return mix(c, JAGUAR_SPOT, ring);
+  let c = cellSpot(p * 2.6);
+  let spot = (1.0 - smoothstep(0.24, 0.27, c.x)) * step(0.3, c.y);
+  return mix(base, JAGUAR_SPOT, spot);
+}
+// Marcas de dano no tanque: manchas queimadas que crescem com o dano (0..1)
+fn damageMarks(base: vec3f, p: vec3f, dmg: f32) -> vec3f {
+  if (dmg <= 0.0) {
+    return base;
+  }
+  let k = noise(p * 3.2 + 5.0) + 0.35 * noise(p * 9.0 + 1.0);
+  // ~10% da superfície com 20% de dano, ~60% perto de explodir
+  let burnt = smoothstep(0.62 - dmg * 0.9, 0.56 - dmg * 0.9, -k);
+  return mix(base, vec3f(0.03, 0.025, 0.02), burnt * 0.92);
 }
 fn wear(base: vec3f, p: vec3f) -> vec3f {
   let w = noise(p * 5.0) + 0.5 * noise(p * 17.0);
@@ -307,13 +337,14 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
   if (pat > 0.5 && pat < 1.5) {
     // tanque: onça + desgaste nas partes amarelas; nas escuras, metal com estrias
     if (in.color.r > 0.5) {
-      base = wear(jaguar(base, in.localPos), in.localPos);
+      base = damageMarks(wear(jaguar(base, in.localPos), in.localPos), in.localPos, u.look.z);
     } else {
       let lp = in.localPos;
       let g = fract(lp.z * 13.0);
       let groove = smoothstep(0.0, 0.12, g) * smoothstep(0.62, 0.5, g);
       let cavity = select(1.0, mix(0.35, 1.0, groove), abs(lp.x) > 0.36);
-      return vec4f(shadeFull(in, base * cavity, in.normal, 0.9 * cavity, 64.0, 0.35), 1.0);
+      let dmgBase = damageMarks(base * cavity, lp, u.look.z);
+      return vec4f(shadeFull(in, dmgBase, in.normal, 0.9 * cavity, 64.0, 0.35), 1.0);
     }
   } else if (pat > 1.5 && pat < 2.5) {
     let m = smoothstep(0.05, 0.3, noise(in.localPos * 9.0 + u.extra.yzw * 7.0));
@@ -327,7 +358,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
     let moss = smoothstep(0.24, 0.36, vnoise2(xz * 0.45 + 40.0) + 0.35 * vnoise2(xz * 2.1));
     base = mix(base, MOSS, moss * 0.6);
     // abs: dentro do pátio a distância é negativa; o escurecimento fica só junto às paredes
-    let contact = mix(0.45, 1.0, smoothstep(0.0, 3.0, abs(fortressDist(xz))));
+    let contact = mix(0.45, 1.0, smoothstep(0.0, 3.0, abs(fortressDist(xz / scene.params.y) * scene.params.y)));
     base = base * contact;
     let tilt = vec3f(vnoise2(xz * 2.3 + 7.0), 0.0, vnoise2(xz * 2.3 + 13.0)) * 0.35;
     return vec4f(shadeN(in, base, normalize(in.normal + tilt)), 1.0);
@@ -342,9 +373,9 @@ const WALL_H = ${FORT_HEIGHT.toFixed(3)};
 const MORTAR = vec3f(0.05, 0.09, 0.20);
 const IVY = vec3f(0.05, 0.25, 0.08);
 const IVY_LIGHT = vec3f(0.08, 0.36, 0.11);
-const RED = vec3f(0.60, 0.10, 0.15);
-const PINK = vec3f(0.75, 0.20, 0.35);
-const YELLOW = vec3f(0.90, 0.85, 0.10);
+const RED = vec3f(0.85, 0.05, 0.12);      // vermelho intenso (flores grandes)
+const PINK = vec3f(0.92, 0.25, 0.45);
+const YELLOW = vec3f(0.98, 0.92, 0.05);   // amarelo intenso (flores pequenas)
 const BURN_COLOR = vec3f(0.01, 0.012, 0.02);
 const GATE = vec4f(${GATE_HALF_W.toFixed(3)}, ${GATE_H.toFixed(3)}, ${(FRONT_Z - WALL_T).toFixed(3)}, ${FRONT_Z.toFixed(3)});
 
@@ -378,14 +409,16 @@ fn stones(p: vec2f) -> vec4f {
 
 @fragment
 fn fs_trench(in: VertexOut) -> @location(0) vec4f {
-  let edgeDist = holeEdge(in.worldPos);
+  // tudo do castelo em coordenadas LOCAIS (castelo base): a escala da missão
+  // está só na matriz de modelo, então pedras, buracos e portão não mudam
+  let edgeDist = holeEdge(in.localPos);
   if (edgeDist < 0.0) {
     discard;
   }
   if (in.color.r > 0.5) {   // detalhes amarelos do portão: sem padrões
     return vec4f(shadeFull(in, in.color, in.normal, 0.8, 60.0, 0.5), 1.0);
   }
-  let wp = in.worldPos;
+  let wp = in.localPos;
   let N0 = normalize(in.normal);
 
   // coordenadas da superfície: torres (cilíndricas) usam ângulo x altura;
@@ -434,20 +467,26 @@ fn fs_trench(in: VertexOut) -> @location(0) vec4f {
   let boost = max(nearTower, corner) * 0.12;
   let ivyN = vnoise2(vec2f(uv.x * 0.9, uv.y * 0.35) + 3.1) + 0.45 * vnoise2(uv * 2.6 + 7.7)
            + 0.25 * vnoise2(uv * 9.0 + 1.3);
-  let ivy = smoothstep(-0.02, 0.06, ivyN - mix(-0.05, 0.31, h01) + boost);
+  let ivy = smoothstep(-0.02, 0.06, ivyN - mix(-0.05, 0.31, h01) + boost + scene.params.z);
   if (ivy > 0.01) {
     let leaf = vnoise2(uv * 14.0 + 5.0);
     let ivyCol = mix(IVY, IVY_LIGHT, smoothstep(-0.2, 0.4, leaf));
     let leafN = vec2f(vnoise2(uv * 12.0 + 2.0), vnoise2(uv * 12.0 + 9.0));
     Nb = normalize(mix(Nb, normalize(N0 + 0.6 * (leafN.x * T + leafN.y * B)), ivy));
     base = mix(base, ivyCol, ivy);
-    let cell = floor(uv * 4.0);
-    let fr = fract(uv * 4.0);
+    // flores em ~12% da hera: vermelhas grandes, rosas médias, amarelas pequenas
+    let cell = floor(uv * 3.2);
+    let fr = fract(uv * 3.2);
     let dF = distance(fr, 0.25 + 0.5 * vec2f(hash2(cell), hash2(cell + 17.0)));
     let pick = hash2(cell + 31.0);
-    let flower = (1.0 - smoothstep(0.10, 0.15, dF)) * step(0.25, pick) * ivy;
-    let petal = select(RED, PINK, pick > 0.68);
-    base = mix(base, select(petal, YELLOW, pick > 0.975), flower);
+    let isYellow = pick > 0.72;
+    let isPink = pick > 0.45 && !isYellow;
+    let radius = select(select(0.22, 0.17, isPink), 0.11, isYellow);
+    let flower = (1.0 - smoothstep(radius - 0.03, radius + 0.02, dF)) * ivy;
+    let petal = select(select(RED, PINK, isPink), YELLOW, isYellow);
+    // miolo amarelo nas vermelhas/rosas (detalhe de flor)
+    let core = (1.0 - smoothstep(0.03, 0.05, dF)) * select(1.0, 0.0, isYellow);
+    base = mix(mix(base, petal, flower), YELLOW, core * flower);
   }
 
   // passagem do portão: escurece para o meio da espessura (sombra de profundidade)
@@ -473,14 +512,14 @@ struct Light { viewProj: mat4x4f };
 @group(1) @binding(0) var<uniform> light: Light;
 struct SOut {
   @builtin(position) position: vec4f,
-  @location(0) worldPos: vec3f,
+  @location(0) localPos: vec3f,
 };
 @vertex
 fn vs_shadow(@location(0) pos: vec3f, @location(1) normal: vec3f, @location(2) color: vec3f) -> SOut {
   var out: SOut;
   let wp = (u.model * vec4f(pos, 1.0)).xyz;
   out.position = light.viewProj * vec4f(wp, 1.0);
-  out.worldPos = wp;
+  out.localPos = pos;
   return out;
 }
 ${NOISE_WGSL}
@@ -488,7 +527,7 @@ ${HOLES_WGSL}
 // fortaleza: buracos não fazem sombra (a luz passa por eles)
 @fragment
 fn fs_shadow_trench(in: SOut) {
-  if (holeEdge(in.worldPos) < 0.0) {
+  if (holeEdge(in.localPos) < 0.0) {
     discard;
   }
 }

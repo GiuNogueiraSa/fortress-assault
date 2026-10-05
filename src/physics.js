@@ -34,6 +34,29 @@ export function moveTank(state, keys, dt, blocked = null) {
   else if (!blocked(state.x, nz)) state.z = nz;
 }
 
+// Mesmo controle, mas com INÉRCIA: a velocidade (andar e girar) se aproxima
+// da desejada aos poucos (lerp de 0.15 por quadro a 60 fps), então acelerar,
+// frear e girar ficam suaves. state.vel / state.turnVel guardam o estado.
+const INERTIA = 0.15;
+export function moveTankSmooth(state, keys, dt, blocked = null) {
+  let turn = 0, drive = 0;
+  if (keys.has("a")) turn += 1;
+  if (keys.has("d")) turn -= 1;
+  if (keys.has("w")) drive += 1;
+  if (keys.has("s")) drive -= 1;
+  const k = 1 - Math.pow(1 - INERTIA, dt * 60);   // mesmo efeito em qualquer fps
+  state.vel = (state.vel || 0) + (drive * MOVE_SPEED - (state.vel || 0)) * k;
+  state.turnVel = (state.turnVel || 0) + (turn * TURN_SPEED - (state.turnVel || 0)) * k;
+  state.yaw += state.turnVel * dt;
+  const forward = bodyForward(state.yaw);
+  const nx = state.x + forward[0] * state.vel * dt;
+  const nz = state.z + forward[2] * state.vel * dt;
+  if (!blocked || blocked(state.x, state.z) || !blocked(nx, nz)) { state.x = nx; state.z = nz; }
+  else if (!blocked(nx, state.z)) state.x = nx;
+  else if (!blocked(state.x, nz)) state.z = nz;
+  else state.vel = 0;   // bateu de frente: para
+}
+
 // Posição e velocidade iniciais do projétil, saindo da boca do cano.
 export function spawnProjectile(state) {
   const { barrel } = tankModelMatrices(state);

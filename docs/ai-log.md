@@ -907,3 +907,109 @@ por fora para conseguir atravessá-lo e ir para o horizonte."
 - **Câmera dentro da parede ao atravessar** → câmera se aproxima do tanque.
 - **Erro do próprio teste:** a função que mexia o mouse voltava o cursor ao
   ponto inicial, e a elevação nunca mudava → corrigida antes do teste final.
+
+## 23. Menu, sistema de missões, controles novos, flores e onça — 04/10/2026 23:17
+
+**Prompt:** "Grande redesign final":
+- menu de abertura (FORTRESS ASSAULT, Começar / Tutorial / Créditos; M/Esc
+  reabre);
+- controles: setas no cano, mouse = câmera 360°, movimento com inércia;
+- flores vibrantes (~12% da hera) e onça com pintas pretas lisas;
+- 3 missões com progressão:
+  1. fácil;
+  2. torres contra-atacam, 75 tiros, 5 impactos;
+  3. mais agressiva, 3 tanques inimigos, 100 tiros, 180 s;
+- vitória/derrota, HUD, minimapa e progresso salvo.
+
+O prompt pedia "entrada 19"; esta é a 23. A versão anterior, estável, foi
+marcada com a tag `v-estavel-travessia`.
+
+**Feito:**
+- **Menu (`menu.js`, `index.html`).**
+  - HTML por cima do canvas, com o jogo renderizando atrás (a câmera dá
+    voltas no castelo ao pôr do sol). Desvanece ao começar.
+  - Telas: tutorial, créditos e fim de missão.
+  - Missões 2 e 3 bloqueadas até completar a anterior (`localStorage`, com
+    try/catch: sem armazenamento o jogo funciona, só não salva).
+  - **M** (ou Esc com o mouse solto) pausa e mostra "Continuar".
+- **Missões (`missions.js`).** Uma tabela por missão: escala do castelo
+  (1.0 / 1.12 com torres ~16 / 1.25 com ~18 de altura e 25 de largura),
+  reforço de hera, acertos por setor, resistência do portão, cadência e
+  precisão das torres, tanques inimigos, munição, vida e tempo.
+- **Castelo escalável (`trench.js`, `lighting.js`).**
+  - A geometria, os buracos e as colisões ficam em coordenadas LOCAIS; a
+    escala vai só na matriz de modelo e a API converte mundo ↔ local.
+  - O shader do castelo (cor e sombra) usa a posição local, então pedras,
+    buracos e a passagem do portão funcionam em qualquer tamanho.
+  - **Setores:** Torre esq. | Portão | Torre dir., pelo x do impacto. Os
+    lados perdem 1/N por acerto e o portão é a própria folha.
+- **Controles.**
+  - Setas ↑/↓ no cano.
+  - Mouse orbita a câmera (0.003 rad/px; elevação limitada para não entrar
+    no chão).
+  - `moveTankSmooth`: velocidade de andar e de girar com lerp de 0.15 por
+    quadro (independente do fps).
+- **Inimigos (`enemies.js`).**
+  - Mira balística: ângulo de trajetória baixa para acertar o alvo com
+    rapidez fixa.
+  - Torres atiram só depois do 1º tiro do jogador, alternando, e só se o
+    setor delas ainda estiver de pé.
+  - Missão 2: mira onde o tanque está, com erro. Missão 3: prevê a posição
+    pela velocidade do tanque.
+  - Tanques inimigos (mesma malha do jogador, avermelhados, sem onça)
+    viram para o jogador e atiram. Um acerto os destrói, e eles bloqueiam a
+    passagem.
+  - Tiros inimigos são cubos laranja emissivos.
+- **Dano:** 5 impactos destroem o tanque. Marcas de queimado no tanque
+  crescem com o dano (no shader, sem cortar o modelo).
+- **HUD (`hud.js`):** barras dos 3 setores, HP, munição, tempo (vermelho
+  abaixo de 30 s, com bipe do WebAudio), tanques restantes, avisos
+  ("⚠ IMPACTO! Saúde: X%") e minimapa.
+- **Vitória:** a câmera voa para o pátio em 2 s (suavizado), o pátio brilha
+  mais e aparecem a mensagem e as estatísticas.
+- **Derrota:** munição acabou, tanque destruído ou tempo esgotado →
+  "Tentar de novo" ou "Menu".
+- **Flores:** vermelho (0.85, 0.05, 0.12) grandes, rosa (0.92, 0.25, 0.45)
+  médias e amarelo (0.98, 0.92, 0.05) pequenas, com miolo amarelo, em
+  ~12% da hera.
+- **Onça:** pintas PRETAS (0.08) lisas e levemente ovais, em parte das
+  células de Voronoi (~18 no casco, ~10 na torre).
+
+**Arquivos:** `index.html`, `src/main.js`, `src/missions.js` (novo),
+`src/menu.js` (novo), `src/hud.js` (novo), `src/enemies.js` (novo),
+`src/trench.js`, `src/lighting.js`, `src/physics.js`, `src/explosion.js`,
+`README.md`, `docs/ai-log.md`.
+
+**Testes (Playwright, relógio virtual):**
+- **Menu:** M2/M3 bloqueadas; tutorial e créditos; M pausa e Continuar
+  retoma. Sem erros no console.
+- **Missão 1:** setores zeram (os tiros do teste foram até as barras
+  chegarem a 0) → vitória com o voo para o pátio → "FORTALEZA
+  CONQUISTADA!" → "Próxima missão".
+- **Missão 2:** munição 75 → 74 no 1º tiro. Parado, o tanque leva os tiros
+  das torres: HP 1 → 0.8 → … → 0 → "TANQUE DESTRUÍDO — DERROTA" →
+  "Tentar de novo" volta com HP e munição cheios.
+- **Missão 3:** botão desbloqueado, 3 tanques e 180 s; um tiro no tanque do
+  meio → 2 restantes; 180 s depois → "TEMPO ESGOTADO — DERROTA".
+- **Desempenho:** menu ~58 fps; missão 3 em combate **54 fps** depois da
+  otimização abaixo.
+
+**Problemas:**
+- **Missão 3 em combate a 22 fps.** Medido desligando partes: sem as
+  explosões, 53 fps; sem a mira, nada mudava.
+  - Causa: explosões perto da câmera (tiros no próprio tanque e no chão ao
+    lado) cobrem meia tela, e o contorno do shader externo avaliava o
+    efeito mais 4 vezes por pixel.
+  - Correção: contorno pela derivada de tela (`fwidth`) do campo já
+    calculado. O traço preto continua, com ~5× menos trabalho. Ficou
+    documentado no cabeçalho de `src/explosion.js` como adaptação.
+  - Por isso, e pela troca de paletas da entrada 21, o shader atual difere
+    de propósito do port original comparado na entrada 17 (commit
+    `add3017`).
+- **Marcas de dano agressivas demais** (com 80% de vida o tanque já ficava
+  quase preto) → crescimento mais gradual.
+- **No teste**, rajadas iguais passavam pelos próprios buracos e não
+  contavam acertos, e o portão às vezes pegava o arco acima da folha →
+  mais tiros e mais espalhados no script. A lógica do jogo não mudou.
+- **Não feito:** música (o pedido dizia "se tiver assets"; há só o bipe
+  sintetizado do alerta de tempo).

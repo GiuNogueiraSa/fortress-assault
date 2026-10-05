@@ -18,6 +18,12 @@
 //   - Pixels com alpha 0 são descartados (`discard`), então não precisa de blending.
 //   - Paletas trocadas para fogo mais realista: núcleo amarelo/laranja, borda
 //     vermelho/marrom e fumaça marrom-escura (o original era roxo/rosado).
+//   - OTIMIZAÇÃO do contorno: o original estima a distância até a borda com o
+//     gradiente por diferenças finitas (avalia o efeito inteiro mais 4 vezes
+//     por pixel, ~12 worley de 27 células). Explosões perto da câmera cobriam
+//     meia tela e derrubavam o jogo para ~22 fps. Aqui a borda usa a derivada
+//     de tela (fwidth) do campo já calculado: mesmo traço preto, com largura
+//     em pixels, e ~5x menos trabalho por pixel.
 
 // Layout do uniform buffer (112 bytes). vec3f ocupa 16 bytes de alinhamento,
 // por isso cada vec3f vem "colado" com um f32 para não sobrar buraco.
@@ -173,21 +179,6 @@ fn f(p: vec2f) -> f32 {
   return max(boom(p), smoke(p));
 }
 
-fn grad(x: vec2f) -> vec2f {
-  let h = vec2f(0.01, 0.0);
-  return vec2f(f(x + h.xy) - f(x - h.xy),
-               f(x + h.yx) - f(x - h.yx)) / (2.0 * h.x);
-}
-
-// Contorno preto "cartoon": distância estimada até a borda da forma
-fn border(uv: vec2f) -> f32 {
-  let b = f(uv);
-  let g = grad(uv);
-  let de = abs(b) / length(g);
-  let eps = 0.01;
-  return smoothstep(1.0 * eps, 2.0 * eps, de);
-}
-
 fn posterize(v: f32, n: i32) -> f32 {
   let nf = f32(n);
   return floor(v * nf) / (nf - 1.0);
@@ -212,7 +203,11 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
   let si = clamp(i32(posterize(smoke_val, 3) * 3.0), 0, 2);
   let smoke_col = smoke_pal[si] - vec3f(1.0 - smoke_a);
 
-  let b = step(1.0, border(pos));
+  // contorno preto "cartoon": |campo| / variação do campo por pixel = distância
+  // até a borda em pixels (mesma ideia do original, via derivada de tela)
+  let field = max(boom_val, smoke_val);
+  let px = abs(field) / max(fwidth(field), 1e-5);
+  let b = step(1.6, px);
   let bw = step(smoke_val * 1.25, boom_val);
 
   let color = bw * boom_col + (1.0 - bw) * smoke_col;

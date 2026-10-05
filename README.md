@@ -1,25 +1,24 @@
-# Tanque 3D em WebGPU
+# Fortress Assault — tanque 3D em WebGPU
 
-Jogo simples de tanque em 3D renderizado com **WebGPU** (trabalho de
-Computação Gráfica). O jogador controla um tanque (modelo 3D glTF, amarelo com
-estampa de onça) em terceira pessoa, ajusta a elevação do canhão com o mouse,
-com uma linha prevendo a trajetória do tiro, e atira projéteis com física de
-gravidade real contra um **castelo medieval** azul coberto de hera e flores:
-duas torres cilíndricas com ameias, muralhas e um portão em arco com passagem.
+Jogo de tanque em 3D renderizado com **WebGPU** (trabalho de Computação
+Gráfica — FECAP). Abre num **menu** (com o castelo ao pôr do sol ao fundo),
+com tutorial e créditos. São **3 missões** em progressão, e cada uma
+desbloqueia a seguinte (o progresso fica salvo no navegador):
 
-Cada acerto explode, com:
-- bola de fogo que sobe;
-- onda de choque;
-- clarão de luz;
-- 40–60 lascas que caem, quicam e somem aos poucos;
-- tremor de câmera.
+1. **Fortaleza simples:** munição ilimitada, sem contra-ataque.
+2. **Fortaleza maior:** as torres atiram de volta, 75 tiros, o tanque aguenta
+   5 impactos.
+3. **Fortaleza épica:** torres que preveem o movimento, 3 tanques inimigos,
+   100 tiros e 3 minutos.
 
-O tiro também abre um buraco irregular em qualquer parte do castelo: muralhas,
-torres e ameias, por fora e por dentro. O portão cai com 3 tiros. Com brechas
-rente ao chão, o tanque atravessa o castelo e segue até o horizonte.
+Para vencer, zere os 3 setores (Torre esq., Portão, Torre dir.); na
+missão 3 também é preciso destruir os tanques inimigos. A câmera então voa
+para dentro do pátio iluminado.
 
-O cenário tem céu com sol e nuvens, grama procedural e árvores. A cena usa
-iluminação por pixel com **sombras** (shadow map do sol).
+O tanque (modelo glTF, amarelo com pintas de onça) tem inércia e câmera 360°.
+O castelo pode ser destruído em qualquer parte, com buracos recortados no
+shader. A cena tem sombras, céu com sol e nuvens, e explosões com fogo, onda
+de choque, lascas, clarão e tremor.
 
 ## Como rodar localmente
 
@@ -43,21 +42,23 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 
 | Ação | Tecla |
 |---|---|
-| Andar para frente / ré (na direção do corpo) | W / S |
-| Girar o tanque no próprio eixo | A / D |
-| Curva (girar enquanto anda) | W ou S + A ou D |
-| Travar o mouse para mirar | Clique no canvas |
-| Elevação do cano | Mouse (cima / baixo) |
-| Atirar | Espaço |
-| Entrar no castelo | Derrube o portão (3 tiros) ou abra uma brecha na muralha |
-| Atravessar até o horizonte | Abra brechas rente ao chão (cano pode apontar para baixo) e siga em frente |
-| Liberar o mouse | Esc |
+| Andar para frente / ré (com inércia) | W / S |
+| Girar o tanque | A / D |
+| Elevação do cano | ↑ / ↓ |
+| Atirar (a linha mostra a trajetória) | Espaço |
+| Câmera 360° ao redor do tanque | Mouse (clique no jogo para travar) |
+| Menu / pausa | M (ou Esc com o mouse solto) |
+| Soltar o mouse | Esc |
 
 ## Estrutura
 
 ```
 index.html        página, HUD e estilos
-src/main.js       inicialização WebGPU, pipeline, entrada e loop do jogo
+src/main.js       WebGPU, pipelines, fluxo menu → missões, entrada e loop do jogo
+src/missions.js   configuração das 3 missões e progresso salvo
+src/menu.js       menu principal, tutorial, créditos, telas de vitória/derrota
+src/hud.js        HUD: setores, vida, munição, tempo, avisos, minimapa
+src/enemies.js    mira balística das torres e tanques inimigos
 src/math.js       matrizes 4x4 (perspectiva, lookAt, rotações, translação)
 src/geometry.js   primitivas (caixa, cilindro, pedra irregular), chão e projétil
 src/trench.js     castelo: torres, muralhas, portão em arco, pátio, buracos e colisões

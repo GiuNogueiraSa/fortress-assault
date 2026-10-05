@@ -13,6 +13,9 @@
 // Colisão do projétil: caixas sólidas (o arco do portão é recortado) MENOS os
 // buracos. Colisão do tanque: pontos amostrados no corpo do tanque contra o
 // mesmo teste, então ele só passa onde a brecha realmente cabe ele.
+// ESCALA por missão: a geometria, os buracos e os testes ficam em coordenadas
+// LOCAIS (castelo base); a API recebe/devolve posições de MUNDO e converte
+// dividindo/multiplicando pela escala (o desenho usa a escala na matriz).
 import { buildBox, buildCylinderY } from "./geometry.js";
 
 // ---------- Dimensões (largura total ~20, torres até ~15, pátio ~9 de fundo) ----------
@@ -46,7 +49,7 @@ const HOLE_HALF_LEN = 1.0;   // o cilindro vai de 0.5 antes a 1.5 depois do impa
 export const HOLE_STRETCH_Y = 1.3;
 export const HOLE_RADIUS_MIN = 0.4;
 export const HOLE_RADIUS_MAX = 0.8;
-export const DOOR_HP = 3;
+export const DOOR_HP = 3;   // padrão (cada missão define o seu)
 export const TRENCH_REBUILD_DESTROYED = 0.5;
 
 const RUBBLE_PER_HOLE_MIN = 4, RUBBLE_PER_HOLE_MAX = 8;
@@ -117,14 +120,43 @@ function fortressBoxes() {
 const DOOR = box(-GATE_HALF_W, 0, FRONT_Z - WALL_T / 2 - 0.15, GATE_HALF_W, GATE_H, FRONT_Z - WALL_T / 2 + 0.15,
   BLUE_DOOR, { door: true });
 
-export function createTrench() {
-  return { boxes: fortressBoxes(), door: DOOR, doorHits: 0, doorOpen: false, holes: [] };
+export function createTrench({ scale = 1, doorHP = DOOR_HP, sectorHits = 8 } = {}) {
+  return {
+    boxes: fortressBoxes(), door: DOOR, doorHits: 0, doorOpen: false, holes: [],
+    scale, doorHP, sectorHits, sectorDamage: { left: 0, right: 0 },
+  };
 }
 
 export function resetTrench(trench) {
   trench.holes.length = 0;
   trench.doorHits = 0;
   trench.doorOpen = false;
+  trench.sectorDamage = { left: 0, right: 0 };
+}
+
+const toLocal = (trench, p) => [p[0] / trench.scale, p[1] / trench.scale, p[2] / trench.scale];
+
+// Setores para a missão: Torre esq. | Portão | Torre dir. (pelo x do impacto).
+// Lados perdem 1/sectorHits por acerto; o portão é a própria folha (doorHP).
+export function sectorIntegrity(trench) {
+  return {
+    left: Math.max(0, 1 - trench.sectorDamage.left / trench.sectorHits),
+    gate: trench.doorOpen ? 0 : Math.max(0, 1 - trench.doorHits / trench.doorHP),
+    right: Math.max(0, 1 - trench.sectorDamage.right / trench.sectorHits),
+  };
+}
+
+// Retângulo do castelo em coordenadas de mundo (minimapa, HUD)
+export function castleBounds(trench) {
+  const s = trench.scale;
+  return { xMin: -HALF_W * s, xMax: HALF_W * s, zMin: (BACK_Z - 1.0) * s, zMax: FRONT_Z * s,
+           centerZ: (BACK_Z - 1.0 + FRONT_Z) / 2 * s };
+}
+
+// De onde as torres atiram (frente do topo de cada torre), em mundo
+export function towerMuzzles(trench) {
+  const s = trench.scale;
+  return TOWERS.map(t => [t.x * s, (t.h + 0.4) * s, (t.z + t.r + 0.3) * s]);
 }
 
 export function trenchFull(trench) {
@@ -154,7 +186,8 @@ function solidBoxes(trench) {
 
 // Caixa sólida que contém o ponto (fora dos buracos), ou null. O portão não
 // deixa passar pelos furos (são só dano visual) e bloqueia até cair.
-export function trenchHitTest(trench, pos) {
+export function trenchHitTest(trench, posWorld) {
+  const pos = toLocal(trench, posWorld);
   const holed = inHole(trench, pos);
   for (const b of solidBoxes(trench)) {
     if (inside(b, pos) && !(holed && b.destructible && !b.door)) return b;
@@ -189,11 +222,16 @@ export function tankBlocked(trench, x, z) {
 // Registra um impacto na caixa b: cilindro ao longo da direção do tiro,
 // começando um pouco antes do ponto de impacto. Devolve o buraco e se o
 // portão caiu com este acerto.
-export function addHole(trench, impact, vel, b, rand = Math.random) {
+export function addHole(trench, impactWorld, vel, b, rand = Math.random) {
+  const impact = toLocal(trench, impactWorld);
   let doorFell = false;
   if (b.door) {
     trench.doorHits++;
-    if (trench.doorHits >= DOOR_HP) { trench.doorOpen = true; doorFell = true; }
+    if (trench.doorHits >= trench.doorHP) { trench.doorOpen = true; doorFell = true; }
+  } else if (impact[0] < -GATE_HALF_W) {
+    trench.sectorDamage.left++;
+  } else if (impact[0] > GATE_HALF_W) {
+    trench.sectorDamage.right++;
   }
   // eixo do buraco = direção HORIZONTAL do tiro: com o eixo inclinado (tiro
   // descendo), a abertura saía mais baixa na face de trás do que a vista na
@@ -206,6 +244,7 @@ export function addHole(trench, impact, vel, b, rand = Math.random) {
     // no portão: furos menores (marcas de dano); nas paredes: buraco normal
     r: b.door ? 0.22 + rand() * 0.1 : HOLE_RADIUS_MIN + rand() * (HOLE_RADIUS_MAX - HOLE_RADIUS_MIN),
     halfLen: HOLE_HALF_LEN,
+    scale: trench.scale,
   };
   if (trench.holes.length >= MAX_HOLES) return { hole: null, doorFell };
   trench.holes.push(hole);
@@ -319,7 +358,8 @@ export function buildTrenchMesh(trench) {
 // para onde o tiro ia)
 export function rubbleForHole(hole, rand = Math.random) {
   const n = RUBBLE_PER_HOLE_MIN + Math.floor(rand() * (RUBBLE_PER_HOLE_MAX - RUBBLE_PER_HOLE_MIN + 1));
-  const { c, d, r } = hole;
+  const sc = hole.scale || 1;
+  const c = hole.c.map(v => v * sc), d = hole.d, r = hole.r * sc;
   const flat = Math.hypot(d[0], d[2]) || 1;
   const fx = d[0] / flat, fz = d[2] / flat;          // direção do tiro no chão
   const sx = -fz, sz = fx;                           // de lado, ao longo da parede
@@ -327,7 +367,7 @@ export function rubbleForHole(hole, rand = Math.random) {
   for (let k = 0; k < n; k++) {
     const along = (rand() < 0.6 ? 1 : -1) * (0.8 + rand() * 0.8);
     const side = (rand() - 0.5) * r * 1.8;
-    pieces.push({ pos: [c[0] + fx * along + sx * side, 0, c[2] + fz * along + sz * side], size: 0.10 + rand() * 0.12 });
+    pieces.push({ pos: [c[0] + fx * along * sc + sx * side, 0, c[2] + fz * along * sc + sz * side], size: (0.10 + rand() * 0.12) * sc });
   }
   return pieces;
 }

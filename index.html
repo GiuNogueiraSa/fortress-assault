@@ -3,15 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Protótipo — Etapa 7: Castelo</title>
+<title>Fortress Assault — Computação Gráfica (WebGPU)</title>
 <style>
   :root {
     --bg: #0e0f12;
-    --panel: rgba(20, 22, 28, 0.85);
-    --accent: #7fd88f;
-    --accent-warn: #e0a24c;
-    --text: #e8e8ea;
-    --muted: #8b8f9a;
+    --panel: rgba(14, 16, 22, 0.78);
+    --accent: #ffd34d;
+    --accent-2: #ff8a3d;
+    --ok: #7fd88f;
+    --warn: #ff5a4f;
+    --text: #f2f2f4;
+    --muted: #a3a8b4;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -21,125 +23,189 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow: hidden;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  #stage {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  #stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  /* O HUD e o menu ficam por cima do canvas, no mesmo quadro */
+  #frame { position: relative; width: min(900px, 100%); height: min(560px, 100%); }
   canvas {
     display: block;
-    /* Tamanho de exibição fixo em CSS; a resolução interna (canvas.width/height)
-       é esse tamanho x devicePixelRatio, calculada em src/main.js */
-    width: min(900px, 100%);
-    height: min(560px, 100%);
+    /* tamanho de exibição em CSS; a resolução interna é isso x devicePixelRatio (main.js) */
+    width: 100%; height: 100%;
     border-radius: 12px;
     box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.5);
     background: #05060a;
     outline: none;
     cursor: crosshair;
   }
-  #hud {
-    position: absolute;
-    top: calc(16px + env(safe-area-inset-top, 0px));
-    left: 16px;
-    right: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    pointer-events: none;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  #hud-bottom {
-    position: absolute;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    left: 16px;
-    right: 16px;
-    display: flex;
-    justify-content: center;
-    pointer-events: none;
-  }
   .panel {
     background: var(--panel);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 13px;
-    line-height: 1.5;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.45;
     backdrop-filter: blur(6px);
   }
-  .panel h1 {
-    font-size: 13px;
-    margin: 0 0 4px 0;
-    color: var(--accent);
-    font-weight: 600;
-    letter-spacing: 0.02em;
+  .status-ok { color: var(--ok); }
+  .status-bad { color: var(--warn); }
+
+  /* ---------- HUD do jogo ---------- */
+  #game-hud { position: absolute; inset: 0; pointer-events: none; display: none; }
+  #game-hud.on { display: block; }
+  #hud-left { position: absolute; top: 10px; left: 10px; width: 230px; display: flex; flex-direction: column; gap: 6px; }
+  #mission-title { font-weight: 700; color: var(--accent); font-size: 13px; }
+  #status { color: var(--muted); }
+  .bar-row { display: grid; grid-template-columns: 72px 1fr 34px; align-items: center; gap: 6px; font-size: 11px; }
+  .bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #5aa0ff, #8fd0ff); transition: width .25s; }
+  .bar.hp > i { background: linear-gradient(90deg, #ff3b30, #ff7a6e); }
+  .bar-row span:last-child { text-align: right; color: var(--muted); }
+  #hud-right { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  #counters { font-size: 13px; font-weight: 600; text-align: right; }
+  #timer.low { color: var(--warn); }
+  #minimap { width: 120px; height: 120px; border-radius: 10px; background: var(--panel); border: 1px solid rgba(255,255,255,0.08); }
+  #toast {
+    position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 20px; font-weight: 800; color: var(--warn); text-shadow: 0 2px 10px rgba(0,0,0,.7);
+    opacity: 0; transition: opacity .25s; white-space: nowrap;
   }
-  .panel p { margin: 0; color: var(--muted); }
-  .status-ok { color: var(--accent); }
-  .status-bad { color: var(--accent-warn); }
-  #crosshair {
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 16px; height: 16px;
-    margin: -8px 0 0 -8px;
-    pointer-events: none;
-    display: none;
-  }
-  #crosshair::before, #crosshair::after {
-    content: "";
-    position: absolute;
-    background: rgba(255,255,255,0.85);
-  }
+  #toast.on { opacity: 1; }
+  #hud-bottom { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; }
+  #controls-hint { font-size: 11px; color: var(--muted); }
+  #crosshair { position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none; display: none; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.85); }
   #crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
   #crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
-  #fallback {
-    max-width: 440px;
-    text-align: center;
-    padding: 28px;
-    background: var(--panel);
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
-    display: none;
+
+  /* ---------- Menu e telas (por cima do jogo, que continua renderizando atrás) ---------- */
+  #overlay {
+    position: absolute; inset: 0; border-radius: 12px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 120%, rgba(255,140,60,0.25), transparent 60%),
+                linear-gradient(180deg, rgba(20,40,90,0.55) 0%, rgba(10,12,20,0.35) 55%, rgba(60,30,10,0.55) 100%);
+    transition: opacity .6s;
   }
-  #fallback h2 { color: var(--accent-warn); margin-top: 0; }
-  #fallback code {
-    background: rgba(255,255,255,0.08);
-    padding: 2px 6px;
-    border-radius: 4px;
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  .screen { display: none; text-align: center; max-width: 560px; padding: 20px; }
+  .screen.on { display: block; }
+  .title {
+    font-size: 54px; font-weight: 900; letter-spacing: 0.08em; margin: 0;
+    background: linear-gradient(180deg, #fff6c9 0%, #ffd34d 45%, #ff8a3d 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 6px 30px rgba(255,140,60,0.25);
   }
+  .subtitle { color: #e9e2d6; letter-spacing: 0.25em; text-transform: uppercase; font-size: 12px; margin: 6px 0 26px; }
+  .btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .btn {
+    min-width: 240px; padding: 11px 18px; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgba(255,211,77,0.55); background: rgba(10,12,18,0.7); color: var(--text);
+    font-weight: 700; letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase;
+    transition: transform .1s, background .15s;
+  }
+  .btn:hover:not(:disabled) { background: rgba(255,211,77,0.18); transform: translateY(-1px); }
+  .btn.primary { background: linear-gradient(180deg, #ffd34d, #ff9a3d); color: #1b1206; border: none; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .row { display: flex; gap: 10px; justify-content: center; }
+  .row .btn { min-width: 115px; }
+  .card { background: rgba(10,12,18,0.78); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px 20px; text-align: left; font-size: 13px; line-height: 1.6; }
+  .card h2 { margin: 0 0 8px; color: var(--accent); font-size: 18px; letter-spacing: 0.06em; }
+  .card kbd { background: rgba(255,255,255,0.12); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+  .big { font-size: 34px; font-weight: 900; letter-spacing: 0.05em; margin: 0 0 10px; }
+  .big.win { color: var(--accent); }
+  .big.lose { color: var(--warn); }
+  #end-stats { color: var(--muted); margin-bottom: 18px; font-size: 13px; }
+  #fallback { max-width: 440px; text-align: center; padding: 28px; background: var(--panel); border-radius: 14px; display: none; }
+  #fallback h2 { color: var(--warn); margin-top: 0; }
 </style>
 </head>
 <body>
   <div id="stage">
-    <canvas id="canvas" width="900" height="560" tabindex="0"></canvas>
-    <div id="crosshair"></div>
-    <div id="fallback">
-      <h2>WebGPU não disponível</h2>
-      <p>Este navegador não suporta WebGPU, ou o suporte está desativado.</p>
-      <p>Use um Chrome/Edge atualizado. Se necessário, ative em <code>chrome://flags/#enable-unsafe-webgpu</code>.</p>
+    <div id="frame">
+      <canvas id="canvas" width="900" height="560" tabindex="0"></canvas>
+      <div id="crosshair"></div>
+
+      <div id="game-hud">
+        <div id="hud-left">
+          <div class="panel">
+            <div id="mission-title">—</div>
+            <div id="status">Inicializando…</div>
+          </div>
+          <div class="panel" id="sectors">
+            <div class="bar-row"><span>Torre esq.</span><div class="bar"><i id="bar-left"></i></div><span id="pct-left">100%</span></div>
+            <div class="bar-row"><span>Portão</span><div class="bar"><i id="bar-gate"></i></div><span id="pct-gate">100%</span></div>
+            <div class="bar-row"><span>Torre dir.</span><div class="bar"><i id="bar-right"></i></div><span id="pct-right">100%</span></div>
+          </div>
+          <div class="panel" id="hp-panel">
+            <div class="bar-row"><span>Tanque (HP)</span><div class="bar hp"><i id="bar-hp"></i></div><span id="pct-hp">100%</span></div>
+          </div>
+        </div>
+        <div id="hud-right">
+          <div class="panel" id="counters"><div id="ammo">Munição: ∞</div><div id="timer"></div><div id="enemies-left"></div></div>
+          <canvas id="minimap" width="240" height="240"></canvas>
+        </div>
+        <div id="toast"></div>
+        <div id="hud-bottom">
+          <div class="panel" id="controls-hint">
+            <span id="lock-hint">Clique para travar o mouse (câmera 360°)</span> ·
+            W/S andar · A/D girar · ↑/↓ cano · Espaço atirar · M menu
+          </div>
+        </div>
+      </div>
+
+      <div id="overlay">
+        <div class="screen on" id="scr-menu">
+          <h1 class="title">FORTRESS ASSAULT</h1>
+          <div class="subtitle">Computação Gráfica — FECAP · WebGPU</div>
+          <div class="btns">
+            <button class="btn primary" id="btn-start">Começar jogo</button>
+            <div class="row">
+              <button class="btn" id="btn-m2">Missão 2</button>
+              <button class="btn" id="btn-m3">Missão 3</button>
+            </div>
+            <button class="btn" id="btn-resume" style="display:none">Continuar</button>
+            <button class="btn" id="btn-tutorial">Tutorial</button>
+            <button class="btn" id="btn-credits">Créditos</button>
+          </div>
+        </div>
+
+        <div class="screen" id="scr-tutorial">
+          <div class="card">
+            <h2>Tutorial</h2>
+            <div><kbd>W</kbd>/<kbd>S</kbd> andar (com inércia) · <kbd>A</kbd>/<kbd>D</kbd> girar o tanque</div>
+            <div><kbd>↑</kbd>/<kbd>↓</kbd> elevação do cano · <kbd>Espaço</kbd> atirar (a linha mostra a trajetória)</div>
+            <div>Mouse (clique no jogo para travar): câmera 360° ao redor do tanque</div>
+            <div><kbd>M</kbd> abre este menu (pausa). <kbd>Esc</kbd> solta o mouse.</div>
+            <div style="margin-top:8px">Destrua os 3 setores (Torre esq., Portão, Torre dir.) para conquistar a fortaleza.
+              Na missão 2 as torres atiram de volta e a munição é limitada; na 3 há tanques inimigos e tempo.</div>
+          </div>
+          <div class="btns" style="margin-top:14px"><button class="btn" data-back>Voltar</button></div>
+        </div>
+
+        <div class="screen" id="scr-credits">
+          <div class="card">
+            <h2>Créditos</h2>
+            <div>Explosão: shader "Cartoon explosion" (Shadertoy X3dGz2), versão Godot em godotshaders.com —
+              CC BY-NC-SA 3.0, adaptado para WGSL.</div>
+            <div>Tanque: modelo "Tank" de Willy Decarpentrie (Sketchfab) — CC BY 4.0.</div>
+            <div>Renderização: WebGPU + WGSL (iluminação, sombras, castelo e efeitos procedurais).</div>
+            <div>Desenvolvido com apoio de IA (Claude Code) — processo em docs/ai-log.md.</div>
+          </div>
+          <div class="btns" style="margin-top:14px"><button class="btn" data-back>Voltar</button></div>
+        </div>
+
+        <div class="screen" id="scr-end">
+          <div class="big" id="end-title">—</div>
+          <div id="end-stats"></div>
+          <div class="row" id="end-btns"></div>
+        </div>
+      </div>
+
+      <div id="fallback">
+        <h2>WebGPU não disponível</h2>
+        <p>Este navegador não suporta WebGPU. Use um Chrome/Edge atualizado
+          (se necessário, ative em chrome://flags/#enable-unsafe-webgpu).</p>
+      </div>
     </div>
-  </div>
-  <div id="hud">
-    <div class="panel">
-      <h1>Etapa 7 — Castelo</h1>
-      <p id="status">Inicializando…</p>
-    </div>
-    <div class="panel">
-      <h1>Controles</h1>
-      <p>W / S: frente / ré · A / D: girar o tanque</p>
-      <p>Mouse (cima / baixo): elevação do cano · Espaço: atirar</p>
-      <p>Abra caminho a tiros pelo castelo e siga até o horizonte</p>
-    </div>
-  </div>
-  <div id="hud-bottom">
-    <div class="panel" id="lock-hint">Clique no canvas para travar o mouse e ajustar a elevação do cano</div>
   </div>
 
 <script type="module" src="src/main.js"></script>
