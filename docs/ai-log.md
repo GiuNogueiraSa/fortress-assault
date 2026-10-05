@@ -1113,3 +1113,56 @@ A versão anterior, estável, foi marcada com a tag `v-estavel-missoes`.
   "∞" no console do Windows (cp1252). É um problema do script, não do
   jogo. A nova execução foi interrompida pelo usuário, e a verificação
   ficou com o teste de fumaça e o de desempenho da missão 3.
+
+## 25. feat: explosion shader realistic colors (white → yellow → orange → red → black) with 3D Perlin turbulence — 05/10/2026 11:26
+
+**Prompt:** "Melhoria final do shader", só em `src/explosion.js`:
+- `EXPLOSION_DURATION` de 1.3 para 2.5;
+- cor em 5 fases pelo tempo com `mix` (código WGSL de exemplo):
+  1. branco intenso;
+  2. amarelo;
+  3. laranja;
+  4. vermelho escuro;
+  5. fumaça preta;
+- aumentar a frequência / as oitavas do fbm/Perlin para mais turbulência.
+
+**Feito:**
+- **Duração:** já estava em 2.5 s desde a entrada 24. Nada mudou.
+- **`phaseColor(t)`:** as 5 fases com as cores e os limites exatos do
+  pedido (0.2 / 0.4 / 0.6 / 0.8), com `mix` dentro de cada fase. Substitui
+  `fireRamp` e `posterize`, removidas por não terem mais uso.
+  - **Bola de fogo:** usa a fase atual, com o núcleo um pouco "mais novo"
+    (mais quente) que a borda, para não ficar uma cor chapada.
+  - **Fumaça:** também leva a cor da fase, um pouco adiantada e a 60%,
+    e termina cinza-preta (0.1).
+- **Turbulência:** não havia `fbm` nem `octaves` para ajustar (era 1
+  oitava do gradient noise 3D). Foi criada `fbm()` com
+  `TURB_FREQUENCY = 1.4` (o dobro do 0.7 anterior) e `TURB_OCTAVES = 2`,
+  deslocamento de 0.45 para 0.8 e animação mais rápida.
+
+**Arquivos:** `src/explosion.js`, `docs/ai-log.md`.
+
+**Testes (Playwright, Chrome com GPU):**
+- **Visual:** capturas de tela a cada ~0.4 s após o impacto no portão.
+  Branco/amarelo → laranja → vermelho escuro → fumaça escura → some.
+  Sem erros de shader nem no console.
+- **Desempenho (missão 3 em combate):** novo shader ~41 fps, anterior
+  ~41 fps, medidos alternando as versões duas vezes. A máquina estava mais
+  lenta que na medição de 53 fps da entrada 24. O custo extra ficou dentro
+  do ruído da medição.
+
+**Problemas:**
+- **Primeira versão (cor só pela fase na bola de fogo):** as fases laranja
+  e vermelha quase não apareciam.
+  - Causa: a bola de fogo do efeito original some na metade da vida, e a
+    fumaça (marrom fixa) dominava.
+  - Correção: a fumaça também passou a seguir a cor da fase.
+- **fBm com 3 oitavas nos dois eixos (6 ruídos por pixel):** derrubou a
+  missão 3 de ~41 para ~34–36 fps.
+  - A explosão é o fragment shader mais caro do jogo (entrada 23).
+  - Reduzido para 2 oitavas no eixo x e 1 no y (3 ruídos por pixel). O
+    custo ficou igual ao anterior.
+  - Por isso não foram usadas as "6 oitavas" do pedido.
+- **Medições de fps variando muito entre execuções** (53 → 43 na mesma
+  versão). A comparação justa foi feita alternando as versões antiga e
+  nova, com `git stash`.

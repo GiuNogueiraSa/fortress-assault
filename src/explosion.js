@@ -25,9 +25,11 @@
 //     de tela (fwidth) do campo já calculado: mesmo traço preto, com largura
 //     em pixels, e ~5x menos trabalho por pixel.
 //   - Explosão "realista": dura 2.5 s (tempo do efeito desacelerado), cores
-//     em degradê suave branco → amarelo → laranja → vermelho → preto (no lugar
-//     da paleta posterizada), escurecendo com o tempo, e turbulência extra com
-//     o gradient noise 3D (Perlin) deformando o campo.
+//     por FASE do tempo (phaseColor: branco 0–0.2 → amarelo → laranja →
+//     vermelho escuro → fumaça preta 0.8–1.0, com mix entre as fases; no lugar
+//     da paleta posterizada), núcleo um pouco mais quente que a borda, e
+//     turbulência fBm (2 oitavas do gradient noise 3D/Perlin) deformando o
+//     campo.
 
 // Layout do uniform buffer (112 bytes). vec3f ocupa 16 bytes de alinhamento,
 // por isso cada vec3f vem "colado" com um f32 para não sobrar buraco.
@@ -191,44 +193,60 @@ fn f(p: vec2f) -> f32 {
   return max(boom(p), smoke(p));
 }
 
-fn posterize(v: f32, n: i32) -> f32 {
-  let nf = f32(n);
-  return floor(v * nf) / (nf - 1.0);
+// Cor pela fase da explosão (t = 0..1 ao longo dos 2.5 s), 5 fases com mix:
+// branco intenso → amarelo → laranja → vermelho escuro → fumaça preta
+fn phaseColor(t: f32) -> vec3f {
+  if (t < 0.2) {
+    return mix(vec3f(1.0, 1.0, 1.0), vec3f(1.0, 0.95, 0.7), t / 0.2);
+  } else if (t < 0.4) {
+    return mix(vec3f(1.0, 0.95, 0.7), vec3f(1.0, 0.7, 0.2), (t - 0.2) / 0.2);
+  } else if (t < 0.6) {
+    return mix(vec3f(1.0, 0.7, 0.2), vec3f(1.0, 0.4, 0.1), (t - 0.4) / 0.2);
+  } else if (t < 0.8) {
+    return mix(vec3f(1.0, 0.4, 0.1), vec3f(0.6, 0.1, 0.05), (t - 0.6) / 0.2);
+  }
+  return mix(vec3f(0.6, 0.1, 0.05), vec3f(0.1, 0.1, 0.1), (t - 0.8) / 0.2);
 }
 
-// Degradê do fogo por "calor" h (0..1): preto → vermelho → laranja → amarelo → branco
-fn fireRamp(h: f32) -> vec3f {
-  let c0 = vec3f(0.04, 0.025, 0.02);
-  let c1 = vec3f(0.72, 0.10, 0.03);
-  let c2 = vec3f(1.00, 0.45, 0.05);
-  let c3 = vec3f(1.00, 0.84, 0.25);
-  let c4 = vec3f(1.00, 0.98, 0.88);
-  let x = clamp(h, 0.0, 1.0) * 4.0;
-  if (x < 1.0) { return mix(c0, c1, smoothstep(0.0, 1.0, x)); }
-  if (x < 2.0) { return mix(c1, c2, smoothstep(1.0, 2.0, x)); }
-  if (x < 3.0) { return mix(c2, c3, smoothstep(2.0, 3.0, x)); }
-  return mix(c3, c4, smoothstep(3.0, 4.0, x));
+// Turbulência fBm: soma de oitavas do gradient noise 3D (Perlin), cada uma com
+// o dobro da frequência e metade da amplitude. Poucas oitavas: o fragment
+// shader da explosão é o mais caro do jogo (ver entrada 23 do ai-log).
+const TURB_FREQUENCY = 1.4;
+const TURB_OCTAVES = 2;
+fn fbm(p: vec3f) -> f32 {
+  var sum = 0.0;
+  var amp = 0.5;
+  var q = p;
+  for (var i = 0; i < TURB_OCTAVES; i++) {
+    sum += amp * noise(q);
+    q = q * 2.0 + vec3f(1.7, 9.2, 3.1);
+    amp *= 0.5;
+  }
+  return sum;
 }
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4f {
   var pos = (in.uv - vec2f(0.5, 0.4)) * SIZE;
-  // turbulência: o gradient noise 3D (Perlin) desloca o ponto antes do campo
-  let tp = vec3f(pos * 0.7, etime() * 0.6);
-  pos = pos + 0.45 * vec2f(noise(tp), noise(tp + vec3f(5.2, 1.3, 2.7)));
+  // turbulência: fBm do gradient noise 3D (Perlin) desloca o ponto antes do campo
+  let tp = vec3f(pos * TURB_FREQUENCY, etime() * 0.9);
+  // x com fBm (2 oitavas), y com 1 oitava: 3 avaliações de ruído por pixel
+  pos = pos + 0.8 * vec2f(fbm(tp), 0.5 * noise(tp + vec3f(5.2, 1.3, 2.7)));
 
   let age01 = clamp(u.time / ${EXPLOSION_DURATION.toFixed(2)}, 0.0, 1.0);   // 0 → 1 ao longo da explosão
 
   let boom_val = boom(pos);
   let boom_a = step(0.0, boom_val);
-  // calor: mais forte no núcleo (campo alto) e no começo; esfria com o tempo
-  let heat = boom_val * 1.5 + 0.55 - 0.75 * smoothstep(0.05, 0.9, age01);
-  let boom_col = fireRamp(heat);
+  // cor da fase atual; o núcleo (campo alto) fica um pouco "mais novo" (mais
+  // quente) que a borda, para a bola não ter uma cor chapada
+  let boom_col = phaseColor(clamp(age01 - clamp(boom_val, 0.0, 1.0) * 0.18, 0.0, 1.0));
 
   let smoke_val = smoke(pos);
   let smoke_a = step(0.0, smoke_val);
-  // fumaça: marrom-escuro que vai ficando preta
-  let smoke_col = mix(vec3f(0.30, 0.24, 0.20), vec3f(0.06, 0.05, 0.05), clamp(age01 * 1.2 - smoke_val * 0.6, 0.0, 1.0));
+  // fumaça quente: leva a cor da fase (um pouco adiantada e mais escura),
+  // passando por laranja e vermelho escuro, e termina cinza-preta
+  let hot = phaseColor(clamp(age01 + 0.15 - clamp(smoke_val, 0.0, 1.0) * 0.1, 0.0, 1.0)) * 0.6;
+  let smoke_col = mix(hot, vec3f(0.1, 0.1, 0.1), smoothstep(0.72, 1.0, age01));
 
   // contorno preto "cartoon": |campo| / variação do campo por pixel = distância
   // até a borda em pixels (mesma ideia do original, via derivada de tela)
