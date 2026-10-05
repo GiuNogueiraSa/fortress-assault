@@ -1880,3 +1880,27 @@ verificação automática do endereço.
   derrubar o servidor da 8000. Depois foi parado.
 - Slides: sem estouro de layout no desktop e no celular; capturas dos
   slides 2, 3, 7 e 8 conferidas.
+
+## 41. "Erro" no Pages: execução cancelada por uma mais nova — 05/10/2026 18:22
+
+**Prompt:** anotações de uma execução do Pages: "Canceling since a higher
+priority waiting request for pages build and deployment @ main exists"
+(+ avisos sobre a migração do Ubuntu).
+
+**Diagnóstico (API pública do GitHub):**
+- **Não é erro do projeto.** Cada push dispara uma publicação, e o GitHub
+  cancela a que está esperando quando chega uma mais nova.
+- **Execuções:**
+  1. `81316ec`: falhou, porque nenhuma máquina do Actions a assumiu
+     (entrada 39);
+  2. `b8b310f`: cancelada por causa da seguinte (a mensagem recebida);
+  3. `10d30a3`: na fila.
+- **githubstatus.com:** o Actions continua em "major outage" ("Incident
+  with Actions — investigating"). A publicação na fila roda quando o
+  incidente for resolvido.
+- **Avisos do Ubuntu:** só informativos, sem efeito.
+
+**Feito:** nada a corrigir. Este registro foi enviado também; o novo push
+apenas substitui a publicação na fila por uma equivalente.
+
+**Arquivos:** `docs/ai-log.md`.
