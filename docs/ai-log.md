@@ -1667,3 +1667,26 @@ no código do jogo.
   acontece jogando normalmente, nem apareceu nos testes em tempo normal.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 35. Mira no mouse em vez das setas? — 05/10/2026 17:11
+
+**Prompt:** "podemos colocar a mira no mouse em vez das setas do teclado?
+Assim o jogador controla as duas coisas num lugar só. O que você
+recomenda?" Depois veio uma mensagem curta, "é rpe", que não deu para
+entender.
+
+**Feito:** análise e recomendação, sem mudança de código.
+- **Como está hoje:** o mouse (X e Y) gira a câmera em volta do tanque, as
+  setas ↑/↓ mudam a elevação do cano, e a torre segue o corpo (um único
+  `state.yaw`, com A/D).
+- **Opção A (recomendada para hoje):**
+  - mouse Y controla a elevação do cano, e a câmera inclina junto;
+  - mouse X continua girando a câmera;
+  - as setas continuam como ajuste fino.
+  - A mudança fica no `mousemove`: risco baixo.
+- **Opção B (estilo World of Tanks, para depois):** a torre segue a
+  direção da câmera, independente do corpo. Exige um yaw próprio para a
+  torre, no disparo, na linha de mira e nas matrizes do tanque: risco
+  maior no dia da apresentação.
+
+**Arquivos:** `docs/ai-log.md`.
