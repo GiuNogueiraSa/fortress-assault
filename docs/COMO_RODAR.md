@@ -117,7 +117,8 @@ Claude Code já sabe o caminho ao abrir a pasta.
 
 ## Link online (GitHub Pages)
 
-Quando o GitHub Pages estiver publicado, o jogo também abre direto em
-<https://giunogueirasa.github.io/fortress-assault/>, sem instalar nada (só
-o Chrome ou o Edge). Se o link der 404, use o passo a passo acima, que
-funciona sem internet.
+O jogo também abre direto em <https://giunogueirasa.github.io/fortress-assault/>
+(slides: <https://giunogueirasa.github.io/fortress-assault/src/presentation.html>),
+sem instalar nada: só o Chrome ou o Edge e internet. Se o link não abrir
+(ex.: sem internet, ou o GitHub instável), use o passo a passo acima, que
+funciona offline.

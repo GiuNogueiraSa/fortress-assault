@@ -1925,3 +1925,32 @@ apenas substitui a publicação na fila por uma equivalente.
   39 e 41), não o tamanho.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 43. GitHub Pages no ar — teste do jogo e dos slides online — 05/10/2026 18:34
+
+**Origem:** a verificação automática deixada na entrada 39 avisou que o site
+passou a responder (~19 min depois, quando o GitHub Actions voltou).
+
+**Testes (Playwright, Chrome com GPU, no endereço do Pages):**
+- **Arquivos:** `/`, `src/main.js`, `assets/models/tank.glb`,
+  `src/presentation.html` e `docs/ai-log.md` respondem 200 com os tipos
+  certos (`application/javascript`, `model/gltf-binary`…).
+- **Jogo:**
+  - "WebGPU ativo" e Tone.js carregado;
+  - Começar jogo → briefing → missão rodando;
+  - 3 tiros derrubaram o portão, e a captura está igual à versão local;
+  - sem erros.
+- **Slides:**
+  - DOM em 1,8 s e todas as imagens carregadas;
+  - o contador leu as 42 entradas do log;
+  - os links `.md` foram reescritos para o GitHub (ex.:
+    `github.com/.../blob/main/docs/ai-log.md`), que os mostra formatados.
+
+**Problema (só do teste):** a 1ª tentativa de abrir os slides deu timeout,
+porque o script navegou para fora da página do jogo ainda rodando. Numa aba
+nova, abriu normalmente.
+
+**Feito:** `docs/COMO_RODAR.md` atualizado com os links online (jogo e
+slides), mantendo o passo a passo local como garantia sem internet.
+
+**Arquivos:** `docs/COMO_RODAR.md`, `docs/ai-log.md`.
