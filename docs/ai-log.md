@@ -1602,3 +1602,22 @@ A versão anterior, estável, foi marcada com a tag `v-estavel-readme`.
 - **No 1º teste, a câmera normal** (atrás do tanque) cortava o topo das
   torres e não dava para ver a queda → câmera de teste afastada, só no
   script.
+
+## 33. "O jogo está testado?" — 05/10/2026 15:42
+
+**Prompt:** pergunta se o jogo está testado.
+
+**Feito:** levantamento, sem mudança de código, do que foi verificado e do
+que não foi.
+- **Testado (automático, no Chrome com GPU):** compilação dos shaders, o
+  fluxo da entrada 28 (vitória na M1, ranking, M2 começando sozinha, derrota
+  na M2, seleção, scores, pausa), os recursos da entrada 32 e o desempenho
+  da M3.
+- **Não testado:**
+  - vitória na M2 e na M3, incluindo a tela final da campanha;
+  - desabamento nas escalas da M2/M3;
+  - alerta de 30 s com Tone.js;
+  - som ouvido de verdade;
+  - partida jogada por uma pessoa.
+
+**Arquivos:** `docs/ai-log.md`.
