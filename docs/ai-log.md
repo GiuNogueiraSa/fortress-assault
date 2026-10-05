@@ -1753,3 +1753,38 @@ A versão anterior, estável, foi marcada com a tag `v-estavel-testes`.
 **Problemas:** nenhum no jogo. Os scripts de teste posicionavam o tanque só
 com `yaw`, e a torre ficaria apontando para a mira antiga → passaram a
 definir `aimYaw` / `turretYaw` também.
+
+## 37. GitHub atualizado? GitHub Pages? Ajustes nos slides — 05/10/2026 17:41
+
+**Prompt:** "subiu tudo para o GitHub? Consigo acessar o jogo pelo GitHub
+Pages? É preciso alterar algo no documento da apresentação?"
+
+**Verificado:**
+- **GitHub:** 6 commits locais ainda não enviados (entradas 31 a 36) e 2
+  tags novas (`v-estavel-readme`, `v-estavel-testes`).
+- **GitHub Pages:** o jogo é um site estático, com todos os caminhos
+  relativos (nenhum começa com `/`), e o Pages usa HTTPS, que o WebGPU
+  exige. Então funciona em `giunogueirasa.github.io/fortress-assault`, desde
+  que o Pages seja ativado nas configurações do repositório.
+- **Slides:**
+  - o contador de commits estava em 32;
+  - faltavam os links do repositório e do jogo online;
+  - os nomes do grupo ainda estão como "Giulia e grupo".
+
+**Feito:**
+- **`.nojekyll` (novo, vazio):** sem ele, o Pages processa o site com o
+  Jekyll, que transforma os `.md` em páginas e pode quebrar com os `{ }`
+  dos logs. Com ele, os arquivos são servidos como estão.
+- **`src/presentation.html`:**
+  - contador "35+ commits";
+  - links do repositório e do jogo online no critério 6;
+  - quando aberto no `github.io`, os links para `.md` (ai-log, análise,
+    README, CLAUDE) apontam para o GitHub, que os mostra formatados, em vez
+    do texto cru.
+- **README:** link "Online" para o GitHub Pages.
+
+**Arquivos:** `.nojekyll`, `src/presentation.html`, `README.md`,
+`docs/ai-log.md`.
+
+**Testes:** slides sem estouro de layout no desktop e no celular; o contador
+de entradas lê 36 do log.

@@ -17,6 +17,10 @@ navegador.
 
 ## 🚀 Como rodar
 
+**Online:** <https://giunogueirasa.github.io/fortress-assault/> (GitHub Pages; precisa de Chrome ou Edge com WebGPU).
+
+**Local:**
+
 O código usa módulos ES, então é preciso um servidor HTTP local (abrir o
 `index.html` direto pelo arquivo não funciona). Na pasta do projeto:
 

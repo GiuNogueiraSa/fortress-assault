@@ -218,7 +218,7 @@
     <div class="body" style="grid-template-rows:auto 1fr auto">
       <div class="stats">
         <div class="stat"><b id="log-count">26</b><span>entradas no ai-log.md (cronológicas)</span></div>
-        <div class="stat"><b>32</b><span>commits com mensagens descritivas</span></div>
+        <div class="stat"><b>35+</b><span>commits com mensagens descritivas</span></div>
         <div class="stat"><b>3</b><span>IAs: Claude (principal), Gemini e ChatGPT (comparação)</span></div>
       </div>
       <div class="card" style="padding:.2em .6em">
@@ -417,6 +417,8 @@
           <li>Commits com mensagens explicando problema e correção</li>
           <li>Tags de versão estável para voltar em caso de problema</li>
           <li>Estes slides, um por critério de avaliação</li>
+          <li>Repositório: <a href="https://github.com/GiuNogueiraSa/fortress-assault" target="_blank" rel="noopener">github.com/GiuNogueiraSa/fortress-assault</a></li>
+          <li>Jogar online: <a href="https://giunogueirasa.github.io/fortress-assault/" target="_blank" rel="noopener">giunogueirasa.github.io/fortress-assault</a></li>
         </ul>
       </div>
     </div>
@@ -522,6 +524,13 @@
       if (n) document.querySelectorAll("#log-count, .log-count-inline").forEach(el => (el.textContent = n));
     })
     .catch(() => { /* aberto como arquivo: fica o número fixo */ });
+
+  // no GitHub Pages os .md apareceriam como texto cru: aponta para o GitHub, que os mostra formatados
+  if (location.hostname.endsWith("github.io")) {
+    document.querySelectorAll('a[href$=".md"]').forEach(a => {
+      a.href = "https://github.com/GiuNogueiraSa/fortress-assault/blob/main/" + a.getAttribute("href").replace(/^\.\.\//, "");
+    });
+  }
 
   show((parseInt(location.hash.slice(1), 10) || 1) - 1);
 </script>
