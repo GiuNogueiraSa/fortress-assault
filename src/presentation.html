@@ -50,7 +50,8 @@
     transition: opacity .45s ease, transform .45s ease;
     pointer-events: none;
     overflow: hidden;
-    font-size: clamp(11px, 1.45vw, 21px);
+    /* proporcional à largura do slide: o layout fica igual em qualquer tela (notebook ou projetor) */
+    font-size: max(11px, min(1.45vw, calc((100vh - 84px) * 16 / 9 / 69)));
   }
   .slide.active { opacity: 1; transform: none; pointer-events: auto; }
   .slide.before { transform: translateX(-40px); }
@@ -131,12 +132,31 @@
 
   /* casos de erro → correção */
   .cases { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7em; }
-  .case { background: linear-gradient(180deg, rgba(39,42,82,.9), rgba(31,33,64,.9)); border: 1px solid var(--line); border-top: 3px solid var(--orange); border-radius: 14px; padding: .9em .9em; font-size: .84em; display: flex; flex-direction: column; gap: .55em; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
-  .case .tag { color: var(--yellow); font-weight: 800; font-size: .9em; }
-  .case h4 { margin: 0; font-size: 1.12em; }
-  .case p { margin: 0; line-height: 1.32; }
-  .case .lbl { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .78em; letter-spacing: .06em; display: block; }
-  .case .fix { color: var(--green); }
+  /* cada caso tem sua cor (--c): faixa no topo, número e brilho */
+  .case {
+    --c: var(--orange);
+    position: relative; overflow: hidden;
+    background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--c) 16%, transparent), transparent 60%),
+                linear-gradient(180deg, rgba(39,42,82,.92), rgba(27,29,58,.92));
+    border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 14px;
+    padding: .8em .8em .75em; font-size: .7em; display: flex; flex-direction: column; gap: .45em;
+    box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  }
+  .c-shader { --c: #ff8a1f; } .c-hole { --c: #8fb0ff; } .c-tank { --c: #4fd18b; } .c-fps { --c: #ff5a4f; } .c-color { --c: #ffd23f; }
+  .case-head { display: flex; align-items: center; gap: .5em; }
+  .case .num { width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #14152a; background: var(--c); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); flex: none; }
+  .case .tag { color: var(--muted); font-weight: 700; font-size: .85em; letter-spacing: .04em; }
+  .case h4 { margin: 0; font-size: 1.22em; line-height: 1.2; }
+  .case p { margin: 0; line-height: 1.35; padding-left: .7em; border-left: 2px solid var(--line); }
+  .case .lbl { font-weight: 800; text-transform: uppercase; font-size: .76em; letter-spacing: .08em; display: block; margin-bottom: .1em; }
+  .case .prob .lbl { color: var(--red); }   .case .prob { border-left-color: var(--red); }
+  .case .cause .lbl { color: var(--yellow); } .case .cause { border-left-color: var(--yellow); color: var(--muted); }
+  .case .fix .lbl { color: var(--green); }  .case .fix { border-left-color: var(--green); }
+  .case .result {
+    margin-top: auto; padding: .45em .6em; border-radius: 9px; font-weight: 800; text-align: center;
+    color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .case .result::before { content: "✓ "; }
 
   /* capa */
   .cover {
@@ -226,8 +246,8 @@
   <section class="slide cover">
     <div class="kicker">Trabalho de Computação Gráfica</div>
     <h1>FORTRESS ASSAULT</h1>
-    <p class="sub">Computação Gráfica — FECAP</p>
-    <div class="tags"><span>WEBGPU</span><span>WGSL</span><span>TONE.JS</span></div>
+    <p class="sub">Jogo de tanque em <b style="color:var(--yellow)">3D cartunizado</b> · Computação Gráfica — FECAP</p>
+    <div class="tags"><span>3D CARTUNIZADO</span><span>WEBGPU</span><span>WGSL</span><span>TONE.JS</span></div>
     <div class="meta">
       <div><b>Grupo</b></div>
       <div class="chips"><span>Giulia</span><span>Marco</span><span>Ruan</span><span>Rafael</span><span>Pedro</span><span>Yasmin</span></div>
@@ -240,10 +260,14 @@
   <section class="slide" style="--bg-img:url('../assets/slides/menu-castelo.jpg')">
     <div class="kicker">Visão geral</div>
     <h2>Objetivo do projeto</h2>
-    <p class="sub">Jogo 3D de tanque renderizado com WebGPU: destruir a fortaleza a tiros de canhão.</p>
+    <p class="sub">Jogo de tanque em <b style="color:var(--yellow)">3D cartunizado</b>, renderizado com WebGPU: destruir a fortaleza a tiros de canhão.</p>
     <div class="body cols-32">
       <img class="shot" src="../assets/slides/jogo-m1-explosao.jpg" alt="Missão 1: terceiro tiro derruba o portão do castelo, com explosão">
       <div class="small" style="display:grid; gap:.7em; align-content:start">
+        <div class="card" style="border-color:var(--yellow)">
+          <h3>Estilo: 3D cartunizado</h3>
+          Cenário e modelos em 3D de verdade, com visual de desenho animado: explosões com contorno preto e cores chapadas, tanque amarelo com pintas de onça, flores vibrantes e cores saturadas.
+        </div>
         <div class="card">
           <h3>Tecnologias</h3>
           <ul>
@@ -316,46 +340,51 @@
   <section class="slide" style="--bg-img:url('../assets/slides/jogo-m2-defesa.jpg')">
     <div class="kicker">Desenvolvimento</div>
     <h2>Erros e correções</h2>
-    <p class="sub">Problemas encontrados e soluções, todos registrados no ai-log e nas mensagens de commit</p>
+    <p class="sub">Bugs reais do jogo: o que aconteceu, por quê, e como foi resolvido</p>
     <div class="body" style="grid-template-rows:1fr auto">
       <div class="cases">
-        <div class="case">
-          <span class="tag">Entrada 3</span>
-          <h4>Bugs no shader original</h4>
-          <p><span class="lbl">Problema</span>O índice da paleta podia sair do array; divisão por zero em t = 0.</p>
-          <p class="fix"><span class="lbl">Solução</span><code>clamp</code> no índice e <code>repeat ≥ 0.001</code>.</p>
-          <p><span class="lbl">Impacto</span>Sem leitura fora do array nem NaN no 1º quadro.</p>
+        <div class="case c-shader">
+          <div class="case-head"><span class="num">1</span><span class="tag">Entrada 3 · 28/09</span></div>
+          <h4>Shader externo com bugs</h4>
+          <p class="prob"><span class="lbl">Problema</span>Ao portar a explosão do Shadertoy, o código original lia uma 5ª cor numa paleta de 4 e dividia por zero no 1º quadro.</p>
+          <p class="cause"><span class="lbl">Causa</span>Ruído entre 0,75 e 1 gerava índice 4; em <code>t = 0</code>, <code>repeat</code> era 0.</p>
+          <p class="fix"><span class="lbl">Solução</span><code>clamp</code> no índice e <code>repeat ≥ 0.001</code>; comparado com o GLSL original em WebGL2.</p>
+          <div class="result">≤ 0,03% de pixels diferentes</div>
         </div>
-        <div class="case">
-          <span class="tag">Entrada 8</span>
-          <h4>Tiro batia no "fundo" do buraco</h4>
-          <p><span class="lbl">Problema</span>O tiro desce inclinado: sai ~0.87 abaixo de onde entrou, fora do raio do buraco.</p>
-          <p class="fix"><span class="lbl">Solução</span>Buraco centrado onde a trajetória cruza o meio da parede.</p>
-          <p><span class="lbl">Impacto</span>2º tiro no mesmo lugar atravessa.</p>
+        <div class="case c-hole">
+          <div class="case-head"><span class="num">2</span><span class="tag">Entrada 8 · 28/09</span></div>
+          <h4>2º tiro não atravessava</h4>
+          <p class="prob"><span class="lbl">Problema</span>Atirar de novo no mesmo buraco batia num "fundo" de parede invisível.</p>
+          <p class="cause"><span class="lbl">Causa</span>O tiro desce inclinado e sai ~0,87 abaixo de onde entrou, fora do buraco centrado na entrada.</p>
+          <p class="fix"><span class="lbl">Solução</span>Centro do buraco onde a trajetória cruza o meio da espessura do muro.</p>
+          <div class="result">O 2º tiro passa direto</div>
         </div>
-        <div class="case">
-          <span class="tag">Entrada 19</span>
-          <h4>"Nada mudou" no navegador</h4>
-          <p><span class="lbl">Problema</span>Cache do navegador + um servidor antigo em IPv6 respondendo na porta 8000.</p>
-          <p class="fix"><span class="lbl">Solução</span><code>serve.py</code>: sem cache (<code>no-store</code>), IPv4 + IPv6.</p>
-          <p><span class="lbl">Impacto</span>Toda mudança aparece ao recarregar.</p>
+        <div class="case c-tank">
+          <div class="case-head"><span class="num">3</span><span class="tag">Entrada 22 · 04/10</span></div>
+          <h4>Tanque preso na brecha</h4>
+          <p class="prob"><span class="lbl">Problema</span>O buraco parecia grande o bastante, mas o tanque travava ao tentar entrar no castelo.</p>
+          <p class="cause"><span class="lbl">Causa</span>O eixo do buraco seguia a inclinação do tiro: a abertura saía mais baixa atrás e deixava uma "aba" invisível.</p>
+          <p class="fix"><span class="lbl">Solução</span>Eixo sempre horizontal, buraco oval e o tanque sobe bordas de até 0,7.</p>
+          <div class="result">Travessia até o pátio</div>
         </div>
-        <div class="case">
-          <span class="tag">Entrada 23</span>
-          <h4>22 fps em combate</h4>
-          <p><span class="lbl">Problema</span>Medido desligando partes: o contorno da explosão recalculava o efeito 4× por pixel.</p>
-          <p class="fix"><span class="lbl">Solução</span>Contorno pela derivada de tela (<code>fwidth</code>).</p>
-          <p><span class="lbl">Impacto</span>Missão 3: <b>22 → 54 fps</b>.</p>
+        <div class="case c-fps">
+          <div class="case-head"><span class="num">4</span><span class="tag">Entrada 23 · 04/10</span></div>
+          <h4>Jogo travando em combate</h4>
+          <p class="prob"><span class="lbl">Problema</span>A missão 3 caía para 22 fps quando havia explosões perto da câmera.</p>
+          <p class="cause"><span class="lbl">Causa</span>Medido desligando partes: o contorno preto recalculava a explosão 4× por pixel.</p>
+          <p class="fix"><span class="lbl">Solução</span>Contorno pela derivada de tela (<code>fwidth</code>) do valor já calculado.</p>
+          <div class="result">22 → 54 fps</div>
         </div>
-        <div class="case">
-          <span class="tag">Entrada 25</span>
-          <h4>Cores da explosão</h4>
-          <p><span class="lbl">Problema</span>Laranja/vermelho quase não apareciam; fBm de 3 oitavas derrubou para ~35 fps.</p>
-          <p class="fix"><span class="lbl">Solução</span>Fumaça segue <code>phaseColor</code>; fBm com 2 oitavas.</p>
-          <p><span class="lbl">Impacto</span>5 fases visíveis, mesmo fps de antes.</p>
+        <div class="case c-color">
+          <div class="case-head"><span class="num">5</span><span class="tag">Entrada 25 · 05/10</span></div>
+          <h4>Cores da explosão sumindo</h4>
+          <p class="prob"><span class="lbl">Problema</span>As fases laranja e vermelha quase não apareciam, e mais turbulência derrubou para ~35 fps.</p>
+          <p class="cause"><span class="lbl">Causa</span>A bola de fogo some na metade da vida e a fumaça, marrom fixa, dominava.</p>
+          <p class="fix"><span class="lbl">Solução</span>Fumaça segue a cor da fase (<code>phaseColor</code>); ruído fBm com 2 oitavas.</p>
+          <div class="result">5 fases visíveis, sem perder fps</div>
         </div>
       </div>
-      <div class="tiny">Também registrado: o erro de alinhamento do buffer na resposta do Gemini (192 bytes para uma struct de 208), achado ao executar o código (entrada 17).</div>
+      <div class="tiny">Cada caso tem a entrada completa no <code>docs/ai-log.md</code> e um commit explicando o problema e a correção.</div>
     </div>
   </section>
 

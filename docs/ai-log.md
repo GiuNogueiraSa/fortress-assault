@@ -2061,3 +2061,42 @@ slides.
 
 **Testes:** busca por "pts", "critério", "avaliação" sem resultados nos
 slides; slides 4, 5, 9 e 10 conferidos por captura; 10 slides no contador.
+
+## 48. Slide de erros reescrito + "3D cartunizado" — 05/10/2026 20:45
+
+**Prompts:** (1) com print do slide de erros: deixá-lo mais bonito, tirar o
+caso "Nada mudou no navegador" (cache, não é um bug do jogo), colocar um
+problema de verdade e descrever melhor cada problema e solução; (2) no meio
+do trabalho: deixar claro nos slides que o jogo é 3D cartunizado.
+
+**Observação:** os prints enviados (selos de pontos ainda visíveis) eram do
+GitHub Pages, que ainda não tinha recebido os commits locais. O `git push`
+daqui falhou por falta de credenciais (o login fica no GitHub Desktop), e
+foi pedido para enviar por lá.
+
+**Feito:**
+- **Caso novo (entrada 22): tanque preso na brecha.** O eixo do buraco
+  seguia a inclinação do tiro, a abertura saía mais baixa atrás e deixava
+  uma "aba" invisível que segurava o tanque → eixo sempre horizontal,
+  buraco oval e o tanque sobe bordas de até 0,7.
+- **Cada caso agora tem Problema → Causa → Solução** (antes "Problema" já
+  misturava a causa), com data, textos revisados a partir do ai-log e o
+  resultado destacado no rodapé do cartão.
+- **Visual:** cada cartão tem cor própria (faixa no topo, número com
+  brilho, resultado na mesma cor); rótulos coloridos (vermelho / amarelo /
+  verde) com barra lateral.
+- **3D cartunizado:** subtítulo e etiqueta na capa; subtítulo e cartão
+  "Estilo: 3D cartunizado" no slide de objetivo (explosões com contorno
+  preto e cores chapadas, tanque com pintas de onça, cores saturadas).
+- **Letra proporcional ao slide:** antes parava em 21px, e num projetor
+  1920×1080 sobrava muito espaço vazio. Agora o tamanho segue a largura do
+  slide (`min(1.45vw, (100vh − 84px)·16/9 / 69)`), e o layout fica igual
+  em qualquer tela.
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:** capturas em 1366×768, 1280×720, 1600×900, 1920×1080 e 400×800.
+
+**Problema:** em 1280×720 a nota no rodapé do slide de erros ficava
+cortada → cartões mais compactos; a mudança da letra proporcional resolveu
+o resto.
