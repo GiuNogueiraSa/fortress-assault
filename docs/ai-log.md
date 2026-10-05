@@ -1621,3 +1621,49 @@ que não foi.
   - partida jogada por uma pessoa.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 34. Teste das vitórias nas missões 2 e 3 e do alerta de 30 s — 05/10/2026 15:56
+
+**Prompt:** "sim" (rodar o teste automático das missões 2 e 3 sugerido na
+entrada 33).
+
+**Feito:** teste Playwright (Chrome com GPU, relógio virtual), sem mudança
+no código do jogo.
+- **Ajustes só no teste,** para conseguir vencer:
+  - "modo deus", que ignora o dano no tanque do jogador; o dano e a derrota
+    já tinham sido testados na entrada 28;
+  - câmera de teste para as capturas.
+  - Os dois foram injetados interceptando o `main.js` no navegador.
+- **Missão 2:** vitória com 26 de 75 tiros.
+  - A torre esquerda desabou na escala 1,12: o alto deixou de ser sólido e
+    a base continuou sólida.
+  - Ranking "MISSÃO 2 CONCLUÍDA!", 2962 pts, Excelente.
+  - A M3 foi desbloqueada.
+- **Missão 3:** a partir de "Próxima", o briefing começou sozinho.
+  - Os 3 tanques inimigos foram destruídos e o castelo caiu com 34 tiros
+    (63 de 100 sobrando).
+  - Tela final "VOCÊ É O CONQUISTADOR!", com Inimigos 3/3, 2892 pts,
+    Excelente (96%), NOVO RECORDE e "Campanha completa! Soma dos recordes:
+    5854 / 9000 pts".
+  - Botões Novo jogo / Menu. Scores mostra os recordes da M2 e da M3; a M1
+    aparece vazia porque o teste começa com o armazenamento limpo.
+- **Alerta de 30 s (M3):** o aviso "30 SEGUNDOS!" aparece quando o tempo
+  chega a 30 s, o cronômetro fica vermelho e o Tone.js fica em "running".
+- Sem erros de JavaScript.
+
+**Problemas (todos no script de teste, não no jogo):**
+- **1ª execução da M3:** a munição acabou com os setores em 8%. O script
+  atirava numa grade fixa, e muitos tiros passavam pelos buracos já
+  abertos. Ele passou a mirar só em pontos da fachada que ainda são parede,
+  como um jogador faria. A tela de derrota "MUNIÇÃO ACABOU" funcionou
+  corretamente nesse caso.
+- **Teste de "parede sólida" errado:** o ponto ficava na frente da fachada,
+  e o portão fica no meio da passagem → corrigido.
+- **Alerta de 30 s não detectado:** o teste pulava 4 s por vez, e o aviso
+  dura 1,6 s → passos menores perto dos 30 s.
+- **Avisos "Max polyphony exceeded" do Tone.js:** só no teste de alerta.
+  Para pular 149 s de jogo, o script trava o navegador por alguns segundos,
+  e o Tone toca de uma vez os acordes de música atrasados. Isso não
+  acontece jogando normalmente, nem apareceu nos testes em tempo normal.
+
+**Arquivos:** `docs/ai-log.md`.
