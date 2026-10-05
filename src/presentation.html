@@ -55,27 +55,52 @@
   .slide.active { opacity: 1; transform: none; pointer-events: auto; }
   .slide.before { transform: translateX(-40px); }
 
-  .kicker { color: var(--yellow); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; font-size: .72em; }
+  /* cena do jogo esmaecida no fundo de cada slide (imagem em --bg-img, no próprio <section>) */
+  .slide::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: var(--bg-img, none) center / cover;
+    opacity: .28; filter: blur(5px) saturate(1.2); transform: scale(1.08);
+    -webkit-mask-image: linear-gradient(100deg, transparent 35%, #000 100%);
+            mask-image: linear-gradient(100deg, transparent 35%, #000 100%);
+  }
+  .slide > * { position: relative; z-index: 1; }
+  /* marca discreta no canto */
+  .slide:not(.cover)::after {
+    content: "FORTRESS ASSAULT · WEBGPU"; position: absolute; right: 4.2%; bottom: 2.4%; z-index: 1;
+    font-size: .55em; letter-spacing: .25em; color: var(--muted); opacity: .55; font-weight: 600;
+  }
+
+  .kicker { color: var(--yellow); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; font-size: .72em; display: flex; align-items: center; gap: .6em; }
+  .kicker::before { content: ""; width: 1.8em; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--yellow), var(--orange)); }
   h1 { font-size: 3.6em; margin: .1em 0; font-weight: 800; letter-spacing: .02em; }
-  h2 { font-size: 1.9em; margin: .15em 0 .1em; font-weight: 800; }
+  h2 { font-size: 1.9em; margin: .15em 0 .1em; font-weight: 800; text-shadow: 0 2px 18px rgba(0,0,0,.35); }
   .sub { color: var(--muted); font-size: 1em; margin: 0 0 .9em; }
-  .pts { display: inline-block; margin-left: .5em; padding: .12em .55em; border-radius: 99px; background: var(--orange); color: #1b1200; font-size: .5em; vertical-align: middle; font-weight: 800; }
-  .body { flex: 1; min-height: 0; display: grid; gap: 1.1em; }
+  .pts { display: inline-block; margin-left: .5em; padding: .12em .6em; border-radius: 99px; background: linear-gradient(135deg, var(--yellow), var(--orange)); color: #1b1200; font-size: .5em; vertical-align: middle; font-weight: 800; box-shadow: 0 4px 14px rgba(255,138,31,.35); text-shadow: none; }
+  .body { flex: 1; min-height: 0; display: grid; gap: 1.1em; align-items: start; }
   .cols-2 { grid-template-columns: 1fr 1fr; }
   .cols-32 { grid-template-columns: 1.35fr 1fr; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .8em 1em; min-height: 0; }
-  .card h3 { margin: 0 0 .35em; font-size: .95em; color: var(--blue-soft); }
+  .card {
+    background: linear-gradient(180deg, rgba(39,42,82,.88), rgba(31,33,64,.88));
+    border: 1px solid var(--line); border-radius: 14px; padding: .8em 1em; min-height: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.28);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .card h3 { margin: 0 0 .35em; font-size: .95em; color: var(--blue-soft); display: flex; align-items: center; gap: .45em; }
+  .card h3::before { content: ""; width: .5em; height: .5em; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 10px var(--yellow); flex: none; }
   ul { margin: .2em 0; padding-left: 1.1em; }
   li { margin: .18em 0; line-height: 1.32; }
   .tiny { font-size: .72em; color: var(--muted); }
   .small { font-size: .82em; }
   code { font-family: Consolas, "Cascadia Code", monospace; font-size: .9em; background: var(--panel-2); padding: .05em .3em; border-radius: 4px; color: var(--yellow); }
-  img.shot { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  img.shot { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; box-shadow: 0 14px 40px rgba(0,0,0,.45); }
+  img.shot, .gallery img { cursor: zoom-in; }
 
   /* galeria de prints do jogo */
   .gallery { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: .8em; min-height: 0; }
   .gallery figure { margin: 0; min-height: 0; display: flex; flex-direction: column; gap: .3em; }
-  .gallery img { flex: 1; min-height: 0; width: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  .body.gallery { align-items: stretch; }
+  .gallery img { flex: 1; min-height: 0; width: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; box-shadow: 0 10px 28px rgba(0,0,0,.4); transition: transform .2s ease, border-color .2s ease; }
+  .gallery img:hover { transform: translateY(-3px); border-color: var(--yellow); }
   .gallery figcaption { font-size: .68em; color: var(--muted); }
   .gallery figcaption b { color: var(--text); }
   .ok { color: var(--green); font-weight: 600; }
@@ -87,8 +112,8 @@
   th { color: var(--muted); font-weight: 600; font-size: .9em; }
   tr:last-child td { border-bottom: 0; }
   td.n { color: var(--yellow); font-weight: 800; white-space: nowrap; }
-  table.log { font-size: .72em; }
-  table.log td { padding: .32em .55em; }
+  table.log { font-size: .8em; }
+  table.log td { padding: .45em .55em; }
   table.log td:last-child { white-space: nowrap; }
   table.score { font-size: .95em; }
   table.score td { padding: .6em .7em; }
@@ -103,13 +128,13 @@
   .btn.primary { background: var(--yellow); color: #1b1600; border-color: var(--yellow); }
 
   .stats { display: flex; gap: 1em; }
-  .stat { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .6em .9em; }
-  .stat b { display: block; font-size: 2em; color: var(--yellow); line-height: 1.1; }
+  .stat { flex: 1; background: linear-gradient(180deg, rgba(39,42,82,.9), rgba(31,33,64,.9)); border: 1px solid var(--line); border-top: 3px solid var(--yellow); border-radius: 14px; padding: .6em .9em; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+  .stat b { display: block; font-size: 2.2em; line-height: 1.1; color: var(--yellow); background: linear-gradient(90deg, var(--yellow), var(--orange)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .stat span { color: var(--muted); font-size: .8em; }
 
   /* casos de erro → correção */
   .cases { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7em; }
-  .case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .7em .75em; font-size: .72em; display: flex; flex-direction: column; gap: .35em; }
+  .case { background: linear-gradient(180deg, rgba(39,42,82,.9), rgba(31,33,64,.9)); border: 1px solid var(--line); border-top: 3px solid var(--orange); border-radius: 14px; padding: .9em .9em; font-size: .84em; display: flex; flex-direction: column; gap: .55em; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
   .case .tag { color: var(--yellow); font-weight: 800; font-size: .9em; }
   .case h4 { margin: 0; font-size: 1.12em; }
   .case p { margin: 0; line-height: 1.32; }
@@ -126,6 +151,30 @@
   .cover .sub { font-size: 1.35em; color: var(--text); }
   .cover .meta { margin-top: 1.6em; color: var(--muted); line-height: 1.6; }
   .cover .meta b { color: var(--text); }
+  .cover::before { display: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4em; margin: .35em 0 .2em; }
+  .chips span {
+    padding: .25em .8em; border-radius: 99px; font-weight: 600; color: var(--text);
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,210,63,.45);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  }
+  .card .chips span { font-size: .8em; padding: .2em .7em; }
+  .tags { display: flex; flex-wrap: wrap; gap: .5em; margin-top: .3em; }
+  .tags span { font-size: .72em; font-weight: 700; letter-spacing: .1em; color: #1b1600; background: var(--yellow); padding: .2em .6em; border-radius: 6px; }
+  .tags span:nth-child(2) { background: var(--orange); }
+  .tags span:nth-child(3) { background: var(--blue-soft); }
+
+  /* encerramento: castelo espelhado ao fundo */
+  .closing { justify-content: center; }
+  .closing::before { display: block; opacity: .55; filter: none; transform: scaleX(-1); -webkit-mask-image: none; mask-image: none; }
+  .closing::after { display: none; }
+  .closing .shade { position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, rgba(14,15,34,.95) 0%, rgba(14,15,34,.75) 50%, rgba(14,15,34,.35) 100%); }
+  .closing h1 { font-size: 4em; color: var(--yellow); text-shadow: 0 4px 0 #8a4b00, 0 10px 30px rgba(0,0,0,.6); margin: 0; }
+
+  /* imagem ampliada (clique numa captura) */
+  #zoom { position: fixed; inset: 0; z-index: 10; background: rgba(5,6,16,.92); display: grid; place-items: center; padding: 24px; cursor: zoom-out; }
+  #zoom[hidden] { display: none; }
+  #zoom img { max-width: 100%; max-height: 100%; border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
 
   .score td:nth-child(2) { color: var(--yellow); font-weight: 800; white-space: nowrap; }
   .score tr.total td { font-weight: 800; font-size: 1.1em; border-top: 2px solid var(--yellow); }
@@ -157,6 +206,8 @@
     nav { gap: 6px; padding: 0 8px; font-size: 13px; }
     nav .btn { padding: .4em .6em; }
     nav .btn-label { display: none; }
+    .slide:not(.cover)::after { display: none; }
+    .closing h1 { font-size: 2.6em; }
   }
 
   /* impressão: um slide por página, sem navegação nem animação */
@@ -182,15 +233,17 @@
     <div class="kicker">Trabalho de Computação Gráfica</div>
     <h1>FORTRESS ASSAULT</h1>
     <p class="sub">Computação Gráfica — FECAP</p>
+    <div class="tags"><span>WEBGPU</span><span>WGSL</span><span>TONE.JS</span></div>
     <div class="meta">
-      <div><b>Grupo:</b> Giulia, Marco, Ruan, Rafael, Pedro e Yasmin</div>
-      <div><b>Data:</b> 05/10/2026</div>
+      <div><b>Grupo</b></div>
+      <div class="chips"><span>Giulia</span><span>Marco</span><span>Ruan</span><span>Rafael</span><span>Pedro</span><span>Yasmin</span></div>
+      <div style="margin-top:.5em"><b>Data:</b> 05/10/2026</div>
       <div class="tiny">Fundo: captura do próprio jogo (castelo ao pôr do sol, menu)</div>
     </div>
   </section>
 
   <!-- 2. Objetivo -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/menu-castelo.jpg')">
     <div class="kicker">Visão geral</div>
     <h2>Objetivo do projeto</h2>
     <p class="sub">Jogo 3D de tanque renderizado com WebGPU: destruir a fortaleza a tiros de canhão.</p>
@@ -236,7 +289,7 @@
   </section>
 
   <!-- 3. Critério 1 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-m1-portao.jpg')">
     <div class="kicker">Critério 1</div>
     <h2>Registro de uso de IAs <span class="pts">2,5 pts</span></h2>
     <p class="sub">Prompts, respostas e etapas utilizadas: cada prompt vira uma entrada em <code>docs/ai-log.md</code></p>
@@ -266,7 +319,7 @@
   </section>
 
   <!-- 4. Critério 2 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-m2-defesa.jpg')">
     <div class="kicker">Critério 2</div>
     <h2>Evidências de erros e correções <span class="pts">2,5 pts</span></h2>
     <p class="sub">Problemas encontrados e soluções, todos registrados no ai-log e nas mensagens de commit</p>
@@ -313,7 +366,7 @@
   </section>
 
   <!-- 5. Critério 3 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-briefing.jpg')">
     <div class="kicker">Critério 3</div>
     <h2>Comparação entre IAs <span class="pts">2,0 pts</span></h2>
     <p class="sub">Claude vs Gemini vs ChatGPT: mesmo prompt (converter o shader para WGSL), código compilado e testado</p>
@@ -347,7 +400,7 @@
   </section>
 
   <!-- 6. Critério 4 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-m1-explosao.jpg')">
     <div class="kicker">Critério 4</div>
     <h2>Origem do shader e adaptações <span class="pts">1,0 pt</span></h2>
     <p class="sub">Shader externo: "Cartoon explosion", Shadertoy X3dGz2 → WGSL</p>
@@ -382,13 +435,13 @@
   </section>
 
   <!-- 7. Critério 5 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-m3-combate.jpg')">
     <div class="kicker">Critério 5</div>
     <h2>Funcionamento estável <span class="pts">1,5 pts</span></h2>
     <p class="sub">App pronto para a apresentação</p>
     <div class="body" style="grid-template-columns:1fr 1fr 1.05fr">
       <div class="card small">
-        <h3>✅ Jogo</h3>
+        <h3>Jogo</h3>
         <ul>
           <li>Menu FORTRESS ASSAULT, tutorial, créditos, pausa</li>
           <li><b>Missão 1:</b> sem defesa, munição ∞</li>
@@ -401,7 +454,7 @@
         </ul>
       </div>
       <div class="card small">
-        <h3>✅ Efeitos e som</h3>
+        <h3>Efeitos e som</h3>
         <ul>
           <li>60 partículas por explosão (cubos, esferas, octaedros), gravidade −9,8, rotação, somem em 3–5 s</li>
           <li>Luz pontual por explosão: RGB (1.0, 0.7, 0.2), 2,0 → 0 em 2,5 s, raio 20</li>
@@ -420,7 +473,7 @@
   </section>
 
   <!-- 8. Critério 6 -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-menu.jpg')">
     <div class="kicker">Critério 6</div>
     <h2>Clareza da apresentação <span class="pts">0,5 pt</span></h2>
     <p class="sub">Documentação e comunicação</p>
@@ -452,7 +505,7 @@
   </section>
 
   <!-- 9. Resumo -->
-  <section class="slide">
+  <section class="slide" style="--bg-img:url('../assets/slides/menu-castelo.jpg')">
     <div class="kicker">Resumo</div>
     <h2>Critérios de avaliação</h2>
     <p class="sub">Onde está a evidência de cada critério</p>
@@ -473,18 +526,20 @@
   </section>
 
   <!-- 10. Créditos -->
-  <section class="slide">
+  <section class="slide closing" style="--bg-img:url('../assets/slides/menu-castelo.jpg')">
+    <div class="shade"></div>
     <div class="kicker">Créditos</div>
-    <h2>Obrigado!</h2>
-    <p class="sub">Fortress Assault — Computação Gráfica, FECAP — 05/10/2026</p>
-    <div class="body cols-2" style="align-items:start">
+    <h1>Obrigado!</h1>
+    <p class="sub" style="color:var(--text)">Fortress Assault — Computação Gráfica, FECAP — 05/10/2026</p>
+    <div class="body cols-2" style="flex:none; max-width:92%">
       <div class="card">
         <h3>Equipe</h3>
-        <ul>
-          <li><b>Grupo:</b> Giulia, Marco, Ruan, Rafael, Pedro e Yasmin</li>
+        <div class="chips"><span>Giulia</span><span>Marco</span><span>Ruan</span><span>Rafael</span><span>Pedro</span><span>Yasmin</span></div>
+        <ul class="small" style="margin-top:.6em">
           <li><b>Professor:</b> Adriano Felix Valente</li>
           <li><b>IAs:</b> Claude (principal), Gemini e ChatGPT (comparação)</li>
         </ul>
+        <div style="margin-top:.7em"><a class="btn primary" href="../index.html" target="_blank" rel="noopener">▶ Jogar agora</a></div>
       </div>
       <div class="card">
         <h3>Fontes externas</h3>
@@ -515,6 +570,7 @@
 
   function show(i) {
     cur = Math.max(0, Math.min(slides.length - 1, i));
+    zoom.hidden = true;
     slides.forEach((s, k) => {
       s.classList.toggle("active", k === cur);
       s.classList.toggle("before", k < cur);
@@ -535,9 +591,20 @@
     else if (e.key === "End") show(slides.length - 1);
   });
 
+  // clique numa captura: mostra em tela cheia (clique ou Esc fecha)
+  const zoom = document.createElement("div");
+  zoom.id = "zoom"; zoom.hidden = true; zoom.innerHTML = "<img alt=''>";
+  document.body.appendChild(zoom);
+  zoom.onclick = () => (zoom.hidden = true);
+  addEventListener("keydown", (e) => { if (e.key === "Escape") zoom.hidden = true; }, true);
+
   // clique no slide: avança (no quarto esquerdo, volta); links e botões funcionam normalmente
   document.getElementById("deck").addEventListener("click", (e) => {
     if (e.target.closest("a, button")) return;
+    if (e.target.matches("img.shot, .gallery img")) {
+      zoom.firstChild.src = e.target.src; zoom.firstChild.alt = e.target.alt; zoom.hidden = false;
+      return;
+    }
     const s = slides[cur].getBoundingClientRect();
     show(e.clientX < s.left + s.width * 0.25 ? cur - 1 : cur + 1);
   });

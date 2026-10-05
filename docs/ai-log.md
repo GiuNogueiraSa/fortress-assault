@@ -2001,3 +2001,40 @@ entradas anteriores resolvida).
 
 **Testes:** capa e créditos conferidos em 1600×900 e 400×800; os nomes
 cabem em uma linha nos dois tamanhos.
+
+## 46. Visual da apresentação mais bonito — 05/10/2026 20:15
+
+**Prompt:** "deixe a apresentação mais bonita".
+
+**Diagnóstico (capturas dos 11 slides):** cartões esticavam até o fim do
+slide e ficavam com grandes áreas vazias (slides 5, 6, 8, 9); slides de
+conteúdo todos iguais (fundo azul liso, nada do jogo); slide final vazio.
+
+**Feito (só `src/presentation.html`, só CSS/HTML + um pouco de JS):**
+- **Fundo do jogo em cada slide:** captura esmaecida e desfocada à direita
+  (`::before` com a imagem em `--bg-img` no próprio `<section>`). O
+  desfoque também apaga o texto do HUD das capturas, que distraía.
+- **Cartões:** altura do conteúdo (`align-items: start`), gradiente, sombra
+  e vidro (`backdrop-filter`); título com marcador amarelo; cartões de
+  erros/estatísticas com faixa colorida no topo; números com gradiente.
+- **Títulos:** traço antes do "kicker", badge de pontos em gradiente, marca
+  "FORTRESS ASSAULT · WEBGPU" no canto.
+- **Capa:** etiquetas WebGPU / WGSL / Tone.js e os nomes do grupo em chips.
+- **Encerramento:** no estilo da capa (castelo espelhado ao fundo,
+  "Obrigado!" grande, chips da equipe, botão "Jogar agora").
+- **Zoom:** clicar numa captura mostra em tela cheia; clique, Esc ou trocar
+  de slide fecha.
+- Letra maior nos cartões de erros e na tabela do ai-log, para ocupar o
+  espaço vazio.
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes (Playwright, Chrome):** 11 slides conferidos em 1600×900 e
+400×800, imagens carregadas; zoom abre, Esc fecha sem trocar de slide, e a
+seta fecha o zoom e avança.
+
+**Problemas:** (1) o texto do HUD das capturas aparecia legível no fundo →
+`blur(5px)` + `scale(1.08)` (esconde a borda desfocada); (2) título com
+marcador e ✅ ao mesmo tempo no slide 8 → ✅ removido do título; (3)
+"Yasmin" quebrava sozinha no cartão da equipe → chips menores dentro de
+cartões.
