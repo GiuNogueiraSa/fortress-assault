@@ -2,7 +2,7 @@
 import { mat4 } from "./math.js";
 import { buildGround, buildProjectile, buildRock, FLOATS_PER_VERTEX } from "./geometry.js";
 import {
-  createTrench, resetTrench, trenchHitTest, holeCenter, addHole, trenchDestroyed, trenchFull,
+  createTrench, resetTrench, trenchHitTest, addHole, trenchDestroyed, trenchFull,
   holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, randomDebrisTint,
   tankBlocked, DOOR_HP,
 } from "./trench.js";
@@ -381,8 +381,12 @@ async function main() {
     yaw: 0,                    // direção do corpo (A/D) — torre, cano e câmera seguem junto
     aimPitch: Math.PI / 3,     // elevação do cano (60° inicial, ajustável pelo mouse)
   };
+  // acesso de leitura para testes automatizados e depuração no console
+  window.__game = { state, trench };
   const MOUSE_PITCH_SENS = 0.0022;
-  const PITCH_MIN = 0.05;
+  // o cano pode apontar um pouco para baixo (~ -9°): de perto, sem isso o tiro
+  // sai na altura da boca (~1.5) e não dá para abrir brecha rente ao chão
+  const PITCH_MIN = -0.15;
   const PITCH_MAX = 1.35; // ~77 graus
   const CAM_DISTANCE = 6.5;
   const CAM_HEIGHT = 3.2;
@@ -464,12 +468,11 @@ async function main() {
   const projectileEvents = {
     onHitTarget(p) {
       // buraco irregular onde o tiro atravessa, borda queimada, entulho no chão
-      const b = trenchHitTest(trench, p.pos);   // caixa atingida (parede, torre, portão…)
-      const center = holeCenter(p.pos, p.vel, b);
-      const { hole, doorFell } = addHole(trench, center, b);
+      const b = trenchHitTest(trench, p.pos);   // parte atingida (muralha, torre, ameia, portão…)
+      const { hole, doorFell } = addHole(trench, p.pos, p.vel, b);
       uploadHoles();
       trenchDamage = trenchDestroyed(trench);
-      if (hole) spawnRubble(rubbleForHole(center, hole.r, p.vel, b));
+      if (hole && !b.door) spawnRubble(rubbleForHole(hole));
       spawnExplosion(p.pos);
       spawnDebris(p.pos, p.vel);
       shakeTime = SHAKE_DURATION;
@@ -479,14 +482,14 @@ async function main() {
       if (doorFell) {
         // o portão inteiro desaba: mais destroços e entulho no vão
         spawnDebris([0, 1.5, trench.door.max[2]], p.vel);
-        spawnRubble(rubbleForHole([0, 1.5, 0], 1.4, p.vel, trench.door));
+        spawnRubble(rubbleForHole({ c: [0, 0, (trench.door.min[2] + trench.door.max[2]) / 2], d: [0, 0, -1], r: 1.4 }));
         setStatus("Portão derrubado! Entre no pátio da fortaleza", true);
       } else if (b.door) {
         setStatus(`Portão atingido: ${trench.doorHits}/${DOOR_HP}`, true);
+      } else if (!hole) {
+        setStatus("O castelo não aguenta mais buracos — afaste-se para ele ser reconstruído", true);
       } else {
-        setStatus(trenchDamage < TRENCH_REBUILD_DESTROYED && !trenchFull(trench)
-          ? `Impacto na fortaleza! Fachada ${Math.round(trenchDamage * 100)}% destruída`
-          : "Fortaleza destruída! Uma nova aparece em instantes", true);
+        setStatus(`Impacto no castelo! Fachada ${Math.round(trenchDamage * 100)}% destruída`, true);
       }
     },
     onHitGround() {
@@ -559,12 +562,11 @@ async function main() {
       if (explosions[i].age > EXPLOSION_DURATION) explosions.splice(i, 1);
     }
 
-    // Fachada quase toda destruída: reconstrói depois que a última explosão
-    // acabar (e não enquanto o tanque estiver no vão do portão, senão prenderia)
-    const d0 = trench.door;
-    const tankInGate = state.x > d0.min[0] - 1.2 && state.x < d0.max[0] + 1.2 &&
-      state.z > d0.min[2] - 1.2 && state.z < d0.max[2] + 1.2;
-    if (explosions.length === 0 && !tankInGate && (trenchDamage >= TRENCH_REBUILD_DESTROYED || trenchFull(trench))) {
+    // Castelo muito destruído (fachada ou lista de buracos cheia): reconstrói
+    // só com o tanque LONGE dele (na frente, a mais de 8 da muralha, ou já
+    // além do fundo), para não prender o tanque nem tampar o caminho aberto
+    const tankAway = state.z > -1 || state.z < -26 || Math.abs(state.x) > 18;
+    if (explosions.length === 0 && tankAway && (trenchDamage >= TRENCH_REBUILD_DESTROYED || trenchFull(trench))) {
       resetTrench(trench);
       uploadHoles();
       trenchDamage = 0;
@@ -582,10 +584,19 @@ async function main() {
       shake = [right[0] * sx, sy, right[2] * sx];
       shakeTime -= dt;
     }
+    // se uma parede do castelo fica entre o tanque e a câmera (atravessando uma
+    // brecha), a câmera chega mais perto para não ficar dentro da alvenaria
+    let camDist = CAM_DISTANCE;
+    for (let d = 0.6; d <= CAM_DISTANCE; d += 0.25) {
+      const k = d / CAM_DISTANCE;
+      const probe = [state.x - forward[0] * d, 0.8 + (CAM_HEIGHT - 0.8) * k, state.z - forward[2] * d];
+      if (isTrenchSolid(probe)) { camDist = Math.max(0.6, d - 0.35); break; }
+    }
+    const camK = camDist / CAM_DISTANCE;
     const eye = [
-      state.x - forward[0] * CAM_DISTANCE + shake[0],
-      CAM_HEIGHT + shake[1],
-      state.z - forward[2] * CAM_DISTANCE + shake[2],
+      state.x - forward[0] * camDist + shake[0],
+      0.8 + (CAM_HEIGHT - 0.8) * camK + 0.6 * (1 - camK) + shake[1],
+      state.z - forward[2] * camDist + shake[2],
     ];
     const camLookAt = [state.x + shake[0], 0.8 + shake[1], state.z + shake[2]];
     const view = mat4.lookAt(eye, camLookAt, [0, 1, 0]);

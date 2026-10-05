@@ -28,7 +28,8 @@ export function moveTank(state, keys, dt, blocked = null) {
   const forward = bodyForward(state.yaw);
   const nx = state.x + forward[0] * drive * MOVE_SPEED * dt;
   const nz = state.z + forward[2] * drive * MOVE_SPEED * dt;
-  if (!blocked || !blocked(nx, nz)) { state.x = nx; state.z = nz; }
+  // se já está encostado/dentro de algo (ex.: castelo reconstruído em cima), deixa sair
+  if (!blocked || blocked(state.x, state.z) || !blocked(nx, nz)) { state.x = nx; state.z = nz; }
   else if (!blocked(nx, state.z)) state.x = nx;
   else if (!blocked(state.x, nz)) state.z = nz;
 }
@@ -54,7 +55,7 @@ export function stepProjectile(p, dt) {
 }
 
 const hitGround = pos => pos[1] <= 0.08;
-const outOfBounds = pos => Math.abs(pos[0]) > 20 || Math.abs(pos[2]) > 20; // saiu da área jogável
+const outOfBounds = pos => Math.abs(pos[0]) > 200 || Math.abs(pos[2]) > 200; // longe demais (o mundo vai até o horizonte)
 
 // isSolid(pos) diz se o ponto está dentro do alvo (ex.: uma célula de pé da trincheira);
 // onHitTarget(p) decide o que fazer com o impacto.

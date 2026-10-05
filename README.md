@@ -14,8 +14,9 @@ Cada acerto explode, com:
 - 40–60 lascas que caem, quicam e somem aos poucos;
 - tremor de câmera.
 
-O tiro também abre um buraco irregular na muralha. O portão cai com 3 tiros e
-o tanque pode entrar no pátio, iluminado por uma luz quente.
+O tiro também abre um buraco irregular em qualquer parte do castelo: muralhas,
+torres e ameias, por fora e por dentro. O portão cai com 3 tiros. Com brechas
+rente ao chão, o tanque atravessa o castelo e segue até o horizonte.
 
 O cenário tem céu com sol e nuvens, grama procedural e árvores. A cena usa
 iluminação por pixel com **sombras** (shadow map do sol).
@@ -48,7 +49,8 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 | Travar o mouse para mirar | Clique no canvas |
 | Elevação do cano | Mouse (cima / baixo) |
 | Atirar | Espaço |
-| Entrar na fortaleza | Derrube o portão (3 tiros) e dirija para dentro |
+| Entrar no castelo | Derrube o portão (3 tiros) ou abra uma brecha na muralha |
+| Atravessar até o horizonte | Abra brechas rente ao chão (cano pode apontar para baixo) e siga em frente |
 | Liberar o mouse | Esc |
 
 ## Estrutura

@@ -9,7 +9,7 @@
 import { mat4 } from "./math.js";
 import { NOISE_WGSL } from "./explosion.js";
 import {
-  MAX_HOLES, FORT_HEIGHT, COURTYARD, TOWERS, FRONT_Z, WALL_T, GATE_HALF_W, GATE_H,
+  MAX_HOLES, FORT_HEIGHT, COURTYARD, TOWERS, FRONT_Z, WALL_T, GATE_HALF_W, GATE_H, HOLE_STRETCH_Y,
 } from "./trench.js";
 
 // ---------- Sol ----------
@@ -93,28 +93,32 @@ struct Uniforms {
 const HOLES_WGSL = /* wgsl */ `
 struct Holes {
   count: vec4f,
-  items: array<vec4f, ${2 * MAX_HOLES}>,   // [2i]: xy, raio, semente; [2i+1]: zMin, zMax
+  items: array<vec4f, ${2 * MAX_HOLES}>,   // [2i]: centro xyz, raio; [2i+1]: direção xyz, meio-comprimento
 };
 @group(2) @binding(0) var<uniform> holes: Holes;
 const BURN_WIDTH = 0.28;
-// distância até a borda do buraco mais próximo (negativa = dentro do buraco)
+// distância até a borda do buraco mais próximo (negativa = dentro do buraco).
+// Cada buraco é um cilindro ao longo da direção do tiro: vale em qualquer
+// parede, de qualquer lado, e atravessa a espessura dela.
 fn holeEdge(wp: vec3f) -> f32 {
-  let p = wp.xy;
   var edgeDist = 1e9;
   let n = i32(holes.count.x);
   for (var i = 0; i < n; i++) {
     let h = holes.items[2 * i];
-    let slab = holes.items[2 * i + 1];
-    if (wp.z < slab.x - 0.02 || wp.z > slab.y + 0.02) {
-      continue;
+    let ax = holes.items[2 * i + 1];
+    let v = wp - h.xyz;
+    let t = dot(v, ax.xyz);
+    if (abs(t) > ax.w + 0.05) {
+      continue;          // antes/depois do cilindro (ex.: a parede do fundo)
     }
-    let d = distance(p, h.xy);
-    if (d > h.z * 1.7 + BURN_WIDTH) {
-      continue;
+    let vp = v - t * ax.xyz;                                   // eixo é horizontal
+    let dist = length(vec3f(vp.x, vp.y / ${HOLE_STRETCH_Y.toFixed(2)}, vp.z));   // oval em pé
+    if (dist > h.w * 1.7 + BURN_WIDTH) {
+      continue;          // longe: pula o ruído
     }
-    let q = vec3f(p * 2.2, h.w);
+    let q = wp * 2.2 + h.xyz * 7.0;    // semente: a posição do próprio buraco
     let wobble = 0.55 * noise(q) + 0.30 * noise(q * 3.7 + 11.0);
-    edgeDist = min(edgeDist, d - h.z * (1.0 + wobble));
+    edgeDist = min(edgeDist, dist - h.w * (1.0 + wobble));
   }
   return edgeDist;
 }

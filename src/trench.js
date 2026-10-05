@@ -2,12 +2,17 @@
 // Inspirada em castelos medievais: duas torres cilíndricas com ameias
 // flanqueando um portão em ARCO (com passagem que atravessa a muralha),
 // muralha frontal com ameias, muralhas laterais e de fundo fechando um pátio.
-// Os buracos NÃO mexem na geometria: cada impacto entra numa lista enviada ao
-// fragment shader (fs_trench em lighting.js), que descarta os pixels dentro de
-// um raio perturbado por ruído (borda rasgada) com faixa queimada em volta.
-// Cada buraco guarda a fatia de profundidade (zMin..zMax) da caixa atingida.
+// TODAS as partes são destrutíveis, por fora e por dentro (muralhas, torres,
+// ameias, canteiro), para dar para abrir caminho e atravessar o castelo.
+// Os buracos NÃO mexem na geometria: cada impacto vira um CILINDRO ao longo da
+// direção do tiro (centro, direção, raio, meio-comprimento), enviado ao
+// fragment shader (fs_trench em lighting.js), que descarta os pixels dentro
+// dele com a borda perturbada por ruído (rasgada) e faixa queimada em volta.
+// Por seguir a direção do tiro, o buraco funciona em qualquer parede
+// (frontal, lateral, fundo, torre) e atravessa a espessura dela.
 // Colisão do projétil: caixas sólidas (o arco do portão é recortado) MENOS os
-// buracos. Colisão do tanque: círculo contra o que toca o chão.
+// buracos. Colisão do tanque: pontos amostrados no corpo do tanque contra o
+// mesmo teste, então ele só passa onde a brecha realmente cabe ele.
 import { buildBox, buildCylinderY } from "./geometry.js";
 
 // ---------- Dimensões (largura total ~20, torres até ~15, pátio ~9 de fundo) ----------
@@ -35,7 +40,10 @@ const BLUE_DOOR = [0.10, 0.17, 0.36];
 const YELLOW = [0.90, 0.85, 0.10];
 
 // ---------- Buracos ----------
-export const MAX_HOLES = 40;
+export const MAX_HOLES = 96;
+const HOLE_HALF_LEN = 1.0;   // o cilindro vai de 0.5 antes a 1.5 depois do impacto: atravessa 1.2 de muralha
+// a explosão rasga mais na vertical: seção do buraco é uma oval 1.3x mais alta que larga
+export const HOLE_STRETCH_Y = 1.3;
 export const HOLE_RADIUS_MIN = 0.4;
 export const HOLE_RADIUS_MAX = 0.8;
 export const DOOR_HP = 3;
@@ -66,14 +74,14 @@ function merlonsX(x0, x1, y, z0, z1, color, skip = () => false) {
   const out = [];
   for (let x = x0; x < x1 - 0.2; x += 1.25) {
     const xe = Math.min(x + 0.7, x1);
-    if (!skip((x + xe) / 2)) out.push(box(x, y, z0, xe, y + MERLON_H, z1, color, { destructible: false, merlon: true }));
+    if (!skip((x + xe) / 2)) out.push(box(x, y, z0, xe, y + MERLON_H, z1, color, { merlon: true }));
   }
   return out;
 }
 function merlonsZ(z0, z1, y, x0, x1, color) {
   const out = [];
   for (let z = z0; z < z1 - 0.2; z += 1.25) {
-    out.push(box(x0, y, z, x1, y + MERLON_H, Math.min(z + 0.7, z1), color, { destructible: false, merlon: true }));
+    out.push(box(x0, y, z, x1, y + MERLON_H, Math.min(z + 0.7, z1), color, { merlon: true }));
   }
   return out;
 }
@@ -87,12 +95,12 @@ function fortressBoxes() {
     box(GATE_HALF_W, 0, fz0, HALF_W, FORT_HEIGHT, fz1, BLUE),
     box(-GATE_HALF_W, GATE_SPRING, fz0, GATE_HALF_W, FORT_HEIGHT, fz1, BLUE, { arch: true, noMesh: true }),
     // muralhas do pátio: laterais (sólidas) e fundo
-    box(-HALF_W, 0, BACK_Z - 1.0, -HALF_W + 1.0, SIDE_H, fz0, BLUE, { destructible: false }),
-    box(HALF_W - 1.0, 0, BACK_Z - 1.0, HALF_W, SIDE_H, fz0, BLUE, { destructible: false }),
+    box(-HALF_W, 0, BACK_Z - 1.0, -HALF_W + 1.0, SIDE_H, fz0, BLUE),
+    box(HALF_W - 1.0, 0, BACK_Z - 1.0, HALF_W, SIDE_H, fz0, BLUE),
     box(-HALF_W, 0, BACK_Z - 1.0, HALF_W, SIDE_H, BACK_Z, BLUE),
     // canteiro no meio do pátio
     // (longe o bastante da muralha frontal para o tanque passar entre os dois)
-    box(-1.5, 0, -15.6, 1.5, 0.8, -13.8, BLUE_DOOR, { destructible: false }),
+    box(-1.5, 0, -15.6, 1.5, 0.8, -13.8, BLUE_DOOR),
     ...merlonsX(-HALF_W, HALF_W, FORT_HEIGHT, fz0, fz1, BLUE, underTower),
     ...merlonsX(-HALF_W, HALF_W, SIDE_H, BACK_Z - 1.0, BACK_Z, BLUE),
     ...merlonsZ(BACK_Z - 1.0, fz0, SIDE_H, -HALF_W, -HALF_W + 1.0, BLUE),
@@ -101,7 +109,7 @@ function fortressBoxes() {
   // torres: colisão aproximada por caixa (a malha é cilíndrica)
   for (const t of TOWERS) {
     b.push(box(t.x - t.r, 0, t.z - t.r, t.x + t.r, t.h + MERLON_H, t.z + t.r, BLUE_TOWER,
-      { destructible: false, tower: true, noMesh: true }));
+      { tower: true, noMesh: true }));
   }
   return b;
 }
@@ -131,8 +139,14 @@ const inside = (b, p) => {
   return true;
 };
 
-const inHole = (trench, p) => trench.holes.some(h =>
-  p[2] >= h.zMin - 0.05 && p[2] <= h.zMax + 0.05 && Math.hypot(p[0] - h.x, p[1] - h.y) < h.r);
+// ponto dentro do cilindro de algum buraco?
+const inHole = (trench, p) => trench.holes.some(h => {
+  const v = [p[0] - h.c[0], p[1] - h.c[1], p[2] - h.c[2]];
+  const t = v[0] * h.d[0] + v[1] * h.d[1] + v[2] * h.d[2];
+  if (Math.abs(t) > h.halfLen) return false;
+  // eixo horizontal: o componente vertical da distância é "encolhido" (oval em pé)
+  return Math.hypot(v[0] - t * h.d[0], (v[1] - t * h.d[1]) / HOLE_STRETCH_Y, v[2] - t * h.d[2]) < h.r;
+});
 
 function solidBoxes(trench) {
   return trench.doorOpen ? trench.boxes : [...trench.boxes, trench.door];
@@ -148,45 +162,58 @@ export function trenchHitTest(trench, pos) {
   return null;
 }
 
-// O tanque (círculo de raio r no chão) bate em algo que toca o chão?
-export function tankBlocked(trench, x, z, r = 1.1) {
-  for (const b of solidBoxes(trench)) {
-    if (b.min[1] >= 1.0) continue;   // ameias, arco: acima do tanque
-    if (b.tower) {
-      if (TOWERS.some(t => Math.hypot(x - t.x, z - t.z) < t.r + r)) return true;
-      continue;
+// O tanque bate em algo? Amostra pontos no corpo (centro + dois anéis, em três
+// alturas) contra o mesmo teste de sólido do projétil: buracos grandes o
+// bastante (vários juntos) abrem passagem; um buraco pequeno não.
+const TANK_SAMPLES = (() => {
+  const pts = [[0, 0]];
+  for (const [rr, n] of [[0.42, 6], [0.85, 12]]) {   // ~ casco do modelo (1.4 de largura)
+    for (let i = 0; i < n; i++) pts.push([Math.cos(i / n * 6.283) * rr, Math.sin(i / n * 6.283) * rr]);
+  }
+  return pts;
+})();
+const TANK_HEIGHTS = [0.7, 1.05];  // casco; passa por cima de bordas de até 0.7 (as esteiras sobem o entulho)
+// Só bloqueia com 3+ pontos no sólido (parede de verdade): pedacinhos que
+// sobram na borda rasgada de uma brecha o tanque empurra e atravessa.
+const TANK_BLOCK_MIN_POINTS = 3;
+export function tankBlocked(trench, x, z) {
+  let hits = 0;
+  for (const [ox, oz] of TANK_SAMPLES) {
+    for (const y of TANK_HEIGHTS) {
+      if (trenchHitTest(trench, [x + ox, y, z + oz]) && ++hits >= TANK_BLOCK_MIN_POINTS) return true;
     }
-    if (x > b.min[0] - r && x < b.max[0] + r && z > b.min[2] - r && z < b.max[2] + r) return true;
   }
   return false;
 }
 
-// Centro do buraco: onde a trajetória cruza o plano do meio da caixa atingida
-export function holeCenter(pos, vel, b) {
-  const midZ = (b.min[2] + b.max[2]) / 2;
-  if (Math.abs(vel[2]) < 1e-3) return pos;
-  const t = (midZ - pos[2]) / vel[2];
-  return [pos[0] + vel[0] * t, pos[1] + vel[1] * t, midZ];
-}
-
-export function addHole(trench, center, b, rand = Math.random) {
+// Registra um impacto na caixa b: cilindro ao longo da direção do tiro,
+// começando um pouco antes do ponto de impacto. Devolve o buraco e se o
+// portão caiu com este acerto.
+export function addHole(trench, impact, vel, b, rand = Math.random) {
   let doorFell = false;
   if (b.door) {
     trench.doorHits++;
     if (trench.doorHits >= DOOR_HP) { trench.doorOpen = true; doorFell = true; }
   }
-  if (!b.destructible) return { hole: null, doorFell };
+  // eixo do buraco = direção HORIZONTAL do tiro: com o eixo inclinado (tiro
+  // descendo), a abertura saía mais baixa na face de trás do que a vista na
+  // frente, e o tanque ficava preso numa "aba" que não aparecia
+  const flat = Math.hypot(vel[0], vel[2]);
+  const d = flat > 1e-3 ? [vel[0] / flat, 0, vel[2] / flat] : [0, 0, -1];
   const hole = {
-    x: center[0], y: center[1],
+    c: [impact[0] + d[0] * 0.5, impact[1] + d[1] * 0.5, impact[2] + d[2] * 0.5],
+    d,
+    // no portão: furos menores (marcas de dano); nas paredes: buraco normal
     r: b.door ? 0.22 + rand() * 0.1 : HOLE_RADIUS_MIN + rand() * (HOLE_RADIUS_MAX - HOLE_RADIUS_MIN),
-    seed: rand() * 100,
-    zMin: b.min[2], zMax: b.max[2],
+    halfLen: HOLE_HALF_LEN,
   };
-  if (trench.holes.length < MAX_HOLES) trench.holes.push(hole);
+  if (trench.holes.length >= MAX_HOLES) return { hole: null, doorFell };
+  trench.holes.push(hole);
   return { hole, doorFell };
 }
 
 // Fração da fachada frontal (fora o portão e as torres) coberta por buracos
+// (amostrada no meio da espessura)
 export function trenchDestroyed(trench) {
   let hit = 0, total = 0;
   const z = FRONT_Z - WALL_T / 2;
@@ -201,13 +228,14 @@ export function trenchDestroyed(trench) {
   return hit / total;
 }
 
+// Uniform "Holes": count (vec4) + MAX_HOLES x 2 vec4: (centro, raio) e (direção, meio-comprimento)
 export const HOLES_UNIFORM_BYTES = (1 + 2 * MAX_HOLES) * 16;
 export function holesUniformData(trench) {
   const d = new Float32Array(HOLES_UNIFORM_BYTES / 4);
   d[0] = trench.holes.length;
   trench.holes.forEach((h, i) => {
-    d.set([h.x, h.y, h.r, h.seed], 4 + i * 8);
-    d.set([h.zMin, h.zMax, 0, 0], 8 + i * 8);
+    d.set([...h.c, h.r], 4 + i * 8);
+    d.set([...h.d, h.halfLen], 8 + i * 8);
   });
   return d;
 }
@@ -287,15 +315,19 @@ export function buildTrenchMesh(trench) {
   return { walls: new Float32Array(walls), door: new Float32Array(door) };
 }
 
-export function rubbleForHole(center, radius, shotVel, b, rand = Math.random) {
+// Entulho no chão perto do buraco, dos dois lados da parede (mais do lado
+// para onde o tiro ia)
+export function rubbleForHole(hole, rand = Math.random) {
   const n = RUBBLE_PER_HOLE_MIN + Math.floor(rand() * (RUBBLE_PER_HOLE_MAX - RUBBLE_PER_HOLE_MIN + 1));
-  const behind = shotVel[2] < 0 ? -1 : 1;
+  const { c, d, r } = hole;
+  const flat = Math.hypot(d[0], d[2]) || 1;
+  const fx = d[0] / flat, fz = d[2] / flat;          // direção do tiro no chão
+  const sx = -fz, sz = fx;                           // de lado, ao longo da parede
   const pieces = [];
   for (let k = 0; k < n; k++) {
-    const size = 0.10 + rand() * 0.12;
-    const side = rand() < 0.6 ? behind : -behind;
-    const face = side < 0 ? b.min[2] : b.max[2];
-    pieces.push({ pos: [center[0] + (rand() - 0.5) * radius * 1.8, 0, face + side * (0.05 + rand() * 0.6)], size });
+    const along = (rand() < 0.6 ? 1 : -1) * (0.8 + rand() * 0.8);
+    const side = (rand() - 0.5) * r * 1.8;
+    pieces.push({ pos: [c[0] + fx * along + sx * side, 0, c[2] + fz * along + sz * side], size: 0.10 + rand() * 0.12 });
   }
   return pieces;
 }

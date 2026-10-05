@@ -839,3 +839,71 @@ estável, foi marcada com a tag git `v-estavel-fortaleza`
   - sol "no horizonte iluminando a fachada": impossível com ele à frente
     (a fachada ficaria contra a luz). Ele vem de trás-esquerda, em luz
     rasante, e aparece no horizonte quando o tanque vira para a esquerda.
+
+## 22. Castelo destrutível por inteiro, travessia até o horizonte — 04/10/2026 21:56
+
+**Prompt:** "Precisamos conseguir acertar cada parte do castelo por dentro e
+por fora para conseguir atravessá-lo e ir para o horizonte."
+
+**O que impedia:**
+1. Muralhas laterais, torres, ameias e canteiro não aceitavam buracos.
+2. O buraco era definido no plano x,y com fatia em z, então só funcionava
+   em paredes que olham para ±Z.
+3. A colisão do tanque ignorava os buracos.
+4. O chão tinha 60 × 60 e os projéteis sumiam a 20 unidades.
+
+**Feito:**
+- **Tudo destrutível** (`trench.js`): muralhas, torres, ameias e canteiro;
+  o portão continua caindo com 3 tiros.
+- **Buraco = cilindro** ao longo da direção HORIZONTAL do tiro (centro,
+  direção, raio, meio-comprimento 1.0), com seção oval 1.3× mais alta que
+  larga (explosão rasga na vertical).
+  - Funciona em qualquer parede, de qualquer lado, e atravessa a espessura.
+  - Mesma conta no shader (cor e sombra) e na colisão (JS).
+  - Até 96 buracos.
+- **Colisão do tanque por amostragem:** centro + anéis de 0.42 e 0.85 em
+  duas alturas (0.7 e 1.05), contra o mesmo teste de sólido do projétil.
+  Bloqueia só com 3+ pontos no sólido: os pedacinhos na borda rasgada de
+  uma brecha o tanque empurra.
+- **Cano pode apontar para baixo** (`PITCH_MIN` 0.05 → −0.15 rad).
+- **Mundo:** chão de 400 × 400 e projéteis valendo até 200 de distância.
+- **Câmera:** se uma parede fica entre o tanque e a câmera, ela se aproxima
+  (não fica mais dentro da alvenaria).
+- **Segurança:**
+  - Se o tanque estiver dentro de algo, pode sempre sair.
+  - O castelo só é reconstruído com o tanque longe dele, para não prender o
+    tanque nem tampar o caminho aberto.
+  - `window.__game` (estado e castelo) exposto só para testes e depuração.
+
+**Arquivos:** `src/trench.js`, `src/lighting.js`, `src/physics.js`,
+`src/geometry.js`, `src/main.js`, `index.html`, `README.md`, `docs/ai-log.md`.
+
+**Testes:**
+- **Lógica (mesma física do jogo), travessia completa:** fura a frontal por
+  fora → cruza o pátio → recua → fura o fundo por dentro → anda até
+  z = −168. **8 de 8** chegaram, com 1 rajada de 15 tiros por muralha.
+- **Torre e muralha lateral:** aceitam buraco.
+- **Jogo real, mira com o mouse (pointer lock):** duas varreduras na
+  frontal; o tanque entra no pátio, recua, faz duas varreduras no fundo (com
+  o cano apontando para baixo) e sai do castelo até z = −47. As capturas
+  mostram as brechas e o tanque no campo aberto.
+- **Regressão:** portão (1/3 → 2/3 → derrubado), explosão, tremor,
+  controles, plano B e fallback.
+- **Desempenho:** ~58–60 fps em DPR 1 e 1.5.
+
+**Problemas encontrados e corrigidos:**
+- **Brecha difícil demais:** a colisão do tanque (raio 1.05, alturas até
+  1.45) exigia buracos quase sempre do raio máximo → amostras no tamanho do
+  casco.
+- **Tanque preso numa "aba" invisível:** com o eixo do buraco inclinado
+  (tiro descendo), a abertura saía mais baixa na face de trás → eixo só
+  horizontal.
+- **Borda inferior de ~0.5 segurando o tanque** → buraco oval vertical e o
+  tanque sobe bordas até 0.7.
+- **Um único ponto da borda rasgada bloqueava** → regra de 3+ pontos.
+- **De perto, o tiro saía sempre a ~1.5 de altura** (altura da boca do
+  cano) e não dava para abrir brecha rente ao chão → cano pode apontar
+  ~9° para baixo.
+- **Câmera dentro da parede ao atravessar** → câmera se aproxima do tanque.
+- **Erro do próprio teste:** a função que mexia o mouse voltava o cursor ao
+  ponto inicial, e a elevação nunca mudava → corrigida antes do teste final.

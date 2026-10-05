@@ -95,8 +95,8 @@ export function buildSphere(radius, center, color, scale = [1, 1, 1], rings = 10
 
 // ---------- Objetos do cenário ----------
 export function buildGround() {
-  // 60x60: cobre também o pátio da fortaleza (que vai até z = -19)
-  return new Float32Array(buildBox(60, 0.2, 60, [0,-0.1,0], [0.16, 0.27, 0.15]));
+  // 400x400: dá para atravessar o castelo e seguir até o horizonte (a névoa esconde a borda)
+  return new Float32Array(buildBox(400, 0.2, 400, [0,-0.1,0], [0.16, 0.27, 0.15]));
 }
 export function buildProjectile() {
   return new Float32Array(buildBox(0.16, 0.16, 0.16, [0,0,0], [0.08, 0.08, 0.09]));
