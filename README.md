@@ -64,6 +64,7 @@ slide para navegar, e Ctrl+P para gerar o PDF (um slide por página).
 
 ```
 index.html        página, HUD e estilos
+docs/DEVELOPMENT_REPORT.md  relatório técnico do desenvolvimento
 src/main.js       WebGPU, pipelines, fluxo menu → missões, entrada e loop do jogo
 src/missions.js   configuração das 3 missões e progresso salvo
 src/menu.js       menu principal, tutorial, créditos, telas de vitória/derrota

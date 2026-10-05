@@ -1267,3 +1267,40 @@ batia):**
   com rolagem.
 - **Download dos `.md`** em vez de abrir → tipo corrigido no `serve.py`
   (servidor reiniciado).
+
+## 27. Relatório técnico final (docs/DEVELOPMENT_REPORT.md) — 05/10/2026 11:56
+
+**Prompt:** criar `docs/DEVELOPMENT_REPORT.md`. O texto trazia a seção
+1 completa (resumo executivo: projeto, estudante, curso, data, status,
+objetivo, escopo) e **terminava no título "### 2. ARQUITETURA DO
+PROJETO"**: o prompt chegou cortado.
+
+**Feito:**
+- **Seção 1:** mantida como enviada, mais os números do projeto.
+- **Seções 2–14 escritas a partir do código e do log:**
+  - arquitetura (módulos e loop do quadro);
+  - pipeline de renderização (bind groups, pipelines, técnicas);
+  - shader externo (fonte, 10 adaptações, validação);
+  - partículas, luz dinâmica e som;
+  - jogabilidade (tabela das missões tirada de `missions.js`);
+  - histórico de desempenho e testes;
+  - uso de IA, com a tabela de problemas e correções;
+  - limitações conhecidas, como rodar e créditos.
+- **Slides:** o critério 6 ganhou o link para o relatório. Ele tinha sido
+  tirado na entrada 26 porque o arquivo não existia. O contador de commits
+  passou para 27.
+- **README:** o relatório entrou na estrutura de arquivos.
+
+**Arquivos:** `docs/DEVELOPMENT_REPORT.md` (novo), `src/presentation.html`,
+`README.md`, `docs/ai-log.md`.
+
+**Problemas:**
+- **Prompt incompleto** → as seções seguintes foram escritas sem
+  especificação; podem ser ajustadas se vier o resto.
+- **Duas afirmações do 1º rascunho estavam erradas** e foram corrigidas
+  conferindo o código:
+  - "19 módulos" → são 18 (`ls src/*.js`);
+  - "colisão em 9 pontos" → são 38 (19 posições × 2 alturas,
+    `TANK_SAMPLES` / `TANK_HEIGHTS` em `trench.js`).
+- **Limitação registrada no relatório:** o roteiro completo das missões
+  não foi reexecutado até o fim depois das entradas 24–26.
