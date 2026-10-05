@@ -1449,3 +1449,51 @@ Valente", testar as duas telas e commitar.
 - Sem erros de JavaScript.
 
 **Problemas:** nenhum.
+
+## 30. README para o GitHub + publicação do repositório — 05/10/2026 14:26
+
+**Prompt:** atualizar o README com um modelo dado e publicar no GitHub
+(`GiuNogueiraSa/fortress-assault`):
+- remote `origin`;
+- `git push -u origin main`;
+- `git push origin --tags`.
+
+A primeira versão do prompt (interrompida) trazia `SEU_GITHUB_USER` e um
+e-mail de exemplo; a segunda trouxe o usuário e o repositório.
+
+**Verificações antes de publicar:**
+- **Git local:** 29 commits, 5 tags `v-estavel-*`, árvore limpa, sem
+  remote. O `user.name` (GiuNogueiraSa) já estava configurado, então nada
+  mudou na configuração.
+- **Dados pessoais:** procura por e-mail, caminhos da pasta do usuário do
+  Windows, senhas e tokens nos 37 arquivos versionados. Nada encontrado (a
+  única ocorrência é "unexpected token", uma mensagem de compilador citada
+  no log).
+- **Repositório no GitHub:** já existia, público e vazio (`git ls-remote`
+  sem refs; API 200). Não precisou ser criado. O `gh` CLI não está
+  instalado, então não daria para criar por aqui.
+- **Licenças para repositório público:** shader CC BY-NC-SA 3.0 (não
+  comercial, com atribuição), modelo CC BY 4.0 (atribuição), Tone.js MIT.
+  A atribuição está no README.
+
+**README — o modelo foi seguido, com correções para não publicar
+informação errada:**
+- "Como rodar" usa `python serve.py`; o `http.server` aparece como
+  alternativa, com o aviso de cache (entrada 19).
+- "28 entradas" → 30.
+- "18 módulos" → 19 (`scores.js` entrou na entrada 28).
+- "Som — 5 faixas" → a lista real de sons.
+- **Desempenho:** "Missão 1: 58 fps / Missão 2: 54 fps" não foram medidos.
+  Ficaram só os números medidos: menu ~58 fps; missão 3 em combate 41–54
+  fps, ou 30–35 com a máquina lenta.
+- **Tabela de critérios:** ganhou a coluna "Evidência".
+- **Seções mantidas,** que o modelo removia: Controles, Estrutura e
+  **Créditos e licenças**. A atribuição é exigida pelas licenças CC BY do
+  modelo e do shader.
+- "[Nomes do grupo]" ficou como no modelo.
+
+**Arquivos:** `README.md`, `docs/ai-log.md`.
+
+**Problemas:** o 1º script que escrevia esta entrada não rodou. Um `\U` no
+texto foi lido pelo Python como escape de caractere Unicode, e nada foi
+gravado nem commitado. Refeito sem a barra.
