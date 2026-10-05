@@ -24,7 +24,7 @@ ajudando no desenvolvimento.
 **Números do projeto:**
 - 19 módulos JavaScript, ~4.200 linhas no total, contando os shaders WGSL
   embutidos (que ficam no mesmo arquivo do módulo).
-- 28 entradas no [ai-log.md](ai-log.md) e 28 commits.
+- 32 entradas no [ai-log.md](ai-log.md) e 32 commits.
 - 4 tags de versão estável.
 
 ## 2. Arquitetura do projeto
@@ -95,8 +95,8 @@ a câmera girando em volta do castelo.
 | Grupo | Conteúdo | Quem usa |
 |---|---|---|
 | 0 | Uniform por objeto, 192 bytes: matrizes, tinta, material, opacidade, dano | todos os objetos |
-| 1 | Uniform da cena, 144 bytes: matriz do sol + 4 luzes pontuais + parâmetros; shadow map; sampler de comparação | passe principal |
-| 2 | Buracos do castelo: até 96, cada um com 2 `vec4` (centro + raio, direção + meio comprimento) | castelo (cor e sombra) |
+| 1 | Uniform da cena, 336 bytes: matriz do sol + 4 luzes pontuais + parâmetros + 12 crateras; shadow map; sampler de comparação | passe principal |
+| 2 | Buracos do castelo: até 96, cada um com 2 `vec4` (centro + raio, direção + meio comprimento), e no cabeçalho a altura do corte de cada torre desabada | castelo (cor e sombra) |
 
 ### Pipelines
 
@@ -134,6 +134,25 @@ a câmera girando em volta do castelo.
   (`HOLE_STRETCH_Y = 1.3`). O fragment descarta os pixels de dentro e
   desenha queimado e borda irregular em volta. A colisão do tanque usa a
   mesma descrição, então dá para atravessar o castelo por um buraco.
+- **Buracos que crescem:** um acerto a até 1,5× o raio (+0,25) do eixo de
+  um buraco existente, na mesma direção, aumenta o raio dele em 0,32 (até
+  2,0) e move o centro 25% para o impacto, em vez de abrir outro buraco.
+  Também economiza vagas do limite de 96.
+- **Desabamento das torres:** quando o setor de uma torre zera, as vagas
+  livres do uniform dos buracos (`count.y` / `count.z`) recebem a altura de
+  um corte.
+  - O fragment shader (cor e sombra) descarta tudo dentro do raio da torre
+    acima dessa altura, com borda irregular por ruído no ângulo.
+  - A altura desce de 14,6 para 5,2 em 1,6 s (quadrática, como queda).
+  - A colisão usa o mesmo corte: o tiro passa onde a torre não existe mais.
+  - Pedaços grandes caem com gravidade e viram entulho; há explosões na
+    borda e um tremor contínuo.
+- **Crateras:** as últimas 12 posições de tiros que erram ficam no uniform
+  da cena.
+  - O shader do chão desenha fuligem no centro e um anel de terra, com borda
+    irregular.
+  - A normal inclina para dentro do buraco e para fora no anel, para parecer
+    afundado.
 - **Tanque:** modelo glTF com cores do código. Pintas de onça por Voronoi
   e marcas de dano que crescem com os impactos, ambas no shader.
 
@@ -279,6 +298,7 @@ Os itens 7 a 10 mudam o visual de propósito, depois dessa validação.
 | Entrada 24 | + 60 partículas por explosão + luzes pontuais + som | 53 |
 | Entrada 25 | + fBm, 2 oitavas (3 oitavas davam ~35) | ~41, igual à versão anterior na mesma hora |
 | Entrada 28 | Menu, transições e ranking (só HTML/JS; poeira só no menu) | 30–35 contra 21–25 da versão anterior, na mesma sessão com a máquina lenta: sem perda |
+| Entrada 32 | Crateras no shader do chão + corte das torres + pedaços | 35,6–35,9 contra 34,5–35,1 da versão anterior, na mesma sessão: sem perda |
 
 - **Como foi medido:** Chrome com GPU real, janela de 1000×700, em
   navegador isolado (um navegador compartilhado congelava a 2ª janela).

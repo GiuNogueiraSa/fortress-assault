@@ -1522,3 +1522,83 @@ legal? tipo, dependendo da quantidade de disparos o buraco aumenta?"
   apresentação), com a tag de versão estável para voltar.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 32. Buraco que cresce, crateras no chão e torre que desmorona — 05/10/2026 15:02
+
+**Prompt:** "faça a minha ideia [buraco que aumenta com os disparos] e isso
+também: crateras no chão quando o tiro erra e torre desmorona quando o setor
+zera".
+
+A versão anterior, estável, foi marcada com a tag `v-estavel-readme`.
+
+**Feito:**
+- **Buraco que cresce (`src/trench.js`, `addHole`):**
+  - Um tiro na borda de um buraco existente aumenta esse buraco em vez de
+    abrir outro. "Borda" é até 1,5× o raio (+0,25) do eixo, na mesma
+    direção de tiro.
+  - O raio cresce 0,32 por acerto, até 2,0, e o centro anda 25% para o
+    lado do impacto.
+  - O recorte no shader e a colisão do tanque usam os mesmos dados, então a
+    brecha maior também deixa o tanque passar.
+  - O status mostra "O buraco aumentou!".
+- **Crateras (`src/lighting.js`, shader do chão):**
+  - O uniform da cena ganhou as últimas 12 crateras (centro, raio, força).
+  - O shader desenha fuligem escura no centro e um anel de terra revirada,
+    com borda irregular por ruído, e inclina a normal para dentro do buraco
+    e para fora no anel: com a luz do sol, parece afundado.
+  - O tiro do jogador que erra agora também gera uma explosão menor, com
+    partículas de terra e grama, tremor e som. Antes só mudava o texto do
+    status.
+  - Os tiros inimigos no chão deixam crateras menores.
+  - Crateras debaixo do castelo são ignoradas, porque não aparecem.
+- **Torre que desmorona (`trench.js` + `lighting.js` + `main.js`):**
+  - Quando o setor esquerdo ou direito zera, a torre dele desaba.
+  - **Visual:** o fragment shader do castelo (cor e sombra) descarta tudo
+    dentro do raio da torre (+0,5) acima de uma altura de corte. A borda é
+    irregular, com ruído pelo ângulo, e queimada como a dos buracos.
+  - **Uniform:** a altura do corte vai nas duas vagas livres do cabeçalho do
+    uniform dos buracos (`count.y` / `count.z`). Assim nenhum layout de bind
+    group mudou.
+  - **Queda:** a altura desce de 14,6 para 5,2 em 1,6 s, de forma quadrática
+    (acelera, como uma queda), com 3 explosões na borda que desce e tremor
+    contínuo.
+  - **Pedaços:** ~22 pedaços grandes (0,3–0,75) saem da borda, caem com
+    gravidade girando e viram entulho parado ao tocar o chão. No fim, um
+    monte de 12 pedras se forma na base.
+  - **Colisão:** usa o mesmo corte. O tiro passa onde a torre não existe
+    mais, e a base continua sólida.
+  - Aviso "TORRE DESMORONOU!".
+
+**Arquivos:** `src/trench.js`, `src/lighting.js`, `src/main.js`,
+`README.md`, `docs/DEVELOPMENT_REPORT.md`, `src/presentation.html`,
+`docs/ai-log.md`.
+
+**Testes (Playwright, Chrome com GPU, relógio virtual):**
+- **Shaders:** compilam ("WebGPU ativo", sem erro de GPU).
+- **Cratera:** tiro baixo → "Impacto no chão", e a captura mostra a cratera
+  escura com o anel de terra.
+- **Buraco que cresce:** ao zerar o setor esquerdo, apareceu "O buraco
+  aumentou!" nos tiros que pegaram a borda. Tiros idênticos ao 1º passam
+  pelo próprio buraco e caem no chão, o que é esperado.
+- **Desabamento:**
+  - corte 14,6 → 14,0 → 12,5 → 10,1 → 5,2 ao longo de 1,6 s;
+  - capturas com uma câmera de teste (injetada só no teste) mostram o topo
+    sumindo com explosões e pedaços, e no fim o toco e a brecha na muralha;
+  - colisão: o alto da torre esquerda deixou de ser sólido; a base e a
+    torre direita continuam sólidas.
+- **Regressão (teste de fluxo da entrada 28):** igual ao anterior.
+  - Vitória na M1 com ranking.
+  - M2 começa sozinha.
+  - Derrota, Escolher, Scores e pausa funcionam.
+  - Sem erros.
+- **Desempenho (missão 3 em combate),** alternando as versões: nova
+  35,6–35,9 fps, anterior 34,5–35,1 fps. Sem perda.
+
+**Problemas:**
+- **O jogo não carregava** ("Cannot access 'TOWERS_WGSL' before
+  initialization"): o código WGSL dos buracos passou a usar as constantes
+  das torres, declaradas mais abaixo no arquivo JS. A declaração foi movida
+  para antes.
+- **No 1º teste, a câmera normal** (atrás do tanque) cortava o topo das
+  torres e não dava para ver a queda → câmera de teste afastada, só no
+  script.

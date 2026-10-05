@@ -69,14 +69,18 @@ export function objectUniformData(viewProj, model, material, camPos, tint = [1, 
 // Luzes dinâmicas das explosões: uma PointLight por explosão ativa (até 4)
 export const MAX_POINT_LIGHTS = 4;
 export const POINT_LIGHT_RANGE = 20;
-// Uniform da cena (grupo 1): matriz do sol, luzes das explosões e parâmetros
-export const SCENE_UNIFORM_BYTES = 64 + MAX_POINT_LIGHTS * 16 + 16;
-// lights: [{ pos: [x,y,z], intensity }]
-export function sceneUniformData(lightVP, lights, castleScale = 1, ivyBoost = 0, yardGlow = 0) {
+// Crateras no chão (tiros que erram): as últimas 12, desenhadas no shader do chão
+export const MAX_CRATERS = 12;
+// Uniform da cena (grupo 1): matriz do sol, luzes das explosões, parâmetros e crateras
+export const SCENE_UNIFORM_BYTES = 64 + MAX_POINT_LIGHTS * 16 + 16 + MAX_CRATERS * 16;
+// lights: [{ pos: [x,y,z], intensity }]; craters: [{ x, z, r, k }] (k = força 0..1)
+export function sceneUniformData(lightVP, lights, castleScale = 1, ivyBoost = 0, yardGlow = 0, craters = []) {
   const d = new Float32Array(SCENE_UNIFORM_BYTES / 4);
   d.set(lightVP, 0);
   lights.slice(0, MAX_POINT_LIGHTS).forEach((l, i) => d.set([l.pos[0], l.pos[1], l.pos[2], l.intensity], 16 + i * 4));
   d.set([1 / SHADOW_MAP_SIZE, castleScale, ivyBoost, yardGlow], 16 + MAX_POINT_LIGHTS * 4);
+  const c0 = 16 + MAX_POINT_LIGHTS * 4 + 4;
+  craters.slice(-MAX_CRATERS).forEach((c, i) => d.set([c.x, c.z, c.r, c.k], c0 + i * 4));
   return d;
 }
 
@@ -92,6 +96,9 @@ struct Uniforms {
 @group(0) @binding(0) var<uniform> u: Uniforms;
 `;
 
+// centro (x, z) e raio das torres, usados nos shaders (castelo, chão e sombra)
+const TOWERS_WGSL = TOWERS.map((t, i) => `const TOWER${i} = vec3f(${t.x.toFixed(3)}, ${t.z.toFixed(3)}, ${t.r.toFixed(3)});`).join("\n");
+
 // Teste dos buracos da fortaleza (usado no shader de cor E no de sombra, para
 // os buracos também deixarem passar luz)
 const HOLES_WGSL = /* wgsl */ `
@@ -101,6 +108,29 @@ struct Holes {
 };
 @group(2) @binding(0) var<uniform> holes: Holes;
 const BURN_WIDTH = 0.28;
+${TOWERS_WGSL}
+// Torre que desabou: tudo dentro do raio da torre acima do corte some. A
+// altura do corte (holes.count.y / .z) desce durante a animação; a borda é
+// irregular (ruído pelo ângulo), como alvenaria quebrada. Negativo = removido.
+fn towerEdge(wp: vec3f) -> f32 {
+  var e = 1e9;
+  for (var i = 0; i < 2; i++) {
+    let cut = select(holes.count.y, holes.count.z, i == 1);
+    if (cut > 1e5) {
+      continue;          // torre em pé
+    }
+    let tw = select(TOWER0, TOWER1, i == 1);
+    let rel = wp.xz - tw.xy;
+    if (length(rel) > tw.z + 0.5) {
+      continue;
+    }
+    let a = atan2(rel.y, rel.x);
+    let ca = vec2f(cos(a), sin(a));
+    let jag = 1.1 * noise(vec3f(ca * 2.2, f32(i) * 7.0)) + 0.4 * noise(vec3f(ca * 6.0, wp.y * 0.6 + f32(i) * 3.0));
+    e = min(e, cut + jag - wp.y);
+  }
+  return e;
+}
 // distância até a borda do buraco mais próximo (negativa = dentro do buraco).
 // Cada buraco é um cilindro ao longo da direção do tiro: vale em qualquer
 // parede, de qualquer lado, e atravessa a espessura dela.
@@ -128,14 +158,13 @@ fn holeEdge(wp: vec3f) -> f32 {
 }
 `;
 
-const TOWERS_WGSL = TOWERS.map((t, i) => `const TOWER${i} = vec3f(${t.x.toFixed(3)}, ${t.z.toFixed(3)}, ${t.r.toFixed(3)});`).join("\n");
-
 export const litShaderCode = /* wgsl */ `
 ${OBJECT_STRUCT}
 struct Scene {
   lightVP: mat4x4f,
   lights: array<vec4f, ${MAX_POINT_LIGHTS}>,   // luzes das explosões: xyz posição, w intensidade
   params: vec4f,     // x: texel do shadow map, y: escala do castelo, z: reforço de hera, w: brilho do pátio (vitória)
+  craters: array<vec4f, ${MAX_CRATERS}>,   // xy: centro (x, z), z: raio, w: força (0 = vazio)
 };
 @group(1) @binding(0) var<uniform> scene: Scene;
 @group(1) @binding(1) var shadowMap: texture_depth_2d;
@@ -337,7 +366,8 @@ fn wear(base: vec3f, p: vec3f) -> vec3f {
 // normal), manchas de musgo e escurecimento de contato perto da fortaleza
 const MOSS = vec3f(0.05, 0.12, 0.05);
 const GRASS_LIGHT = vec3f(0.22, 0.36, 0.16);
-${TOWERS_WGSL}
+const CRATER_SOOT = vec3f(0.05, 0.045, 0.04);
+const CRATER_DIRT = vec3f(0.30, 0.21, 0.12);
 fn fortressDist(p: vec2f) -> f32 {
   let q = abs(p - vec2f(0.0, -13.0)) - vec2f(10.0, 4.6);   // retângulo das muralhas
   var d = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0);
@@ -379,7 +409,30 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
     // abs: dentro do pátio a distância é negativa; o escurecimento fica só junto às paredes
     let contact = mix(0.45, 1.0, smoothstep(0.0, 3.0, abs(fortressDist(xz / scene.params.y) * scene.params.y)));
     base = base * contact;
-    let tilt = vec3f(vnoise2(xz * 2.3 + 7.0), 0.0, vnoise2(xz * 2.3 + 13.0)) * 0.35;
+    // crateras: buraco escuro (fuligem), anel de terra revirada em volta e a
+    // normal inclinada para dentro (o meio parece afundado) e para fora no anel
+    var craterTilt = vec2f(0.0);
+    for (var i = 0; i < ${MAX_CRATERS}; i++) {
+      let c = scene.craters[i];
+      if (c.w <= 0.0) {
+        continue;
+      }
+      let rel = xz - c.xy;
+      let rl = length(rel);
+      if (rl > c.z * 1.5) {
+        continue;
+      }
+      let w = rl / c.z + 0.3 * vnoise2(xz * 2.5 + c.xy * 3.1);   // borda irregular
+      let pit = 1.0 - smoothstep(0.0, 0.62, w);
+      let scorch = 1.0 - smoothstep(0.45, 1.05, w);
+      let rim = smoothstep(0.7, 0.92, w) * (1.0 - smoothstep(0.95, 1.3, w));
+      base = mix(base, CRATER_SOOT, scorch * 0.85 * c.w);
+      base = mix(base, CRATER_DIRT, rim * 0.75 * c.w);
+      base = base * (1.0 - 0.4 * pit * c.w);
+      let dir = rel / max(rl, 1e-4);
+      craterTilt += dir * c.w * (0.6 * rim - 0.75 * smoothstep(0.0, 0.25, w) * (1.0 - smoothstep(0.2, 0.85, w)));
+    }
+    let tilt = vec3f(vnoise2(xz * 2.3 + 7.0), 0.0, vnoise2(xz * 2.3 + 13.0)) * 0.35 + vec3f(craterTilt.x, 0.0, craterTilt.y);
     return vec4f(shadeN(in, base, normalize(in.normal + tilt)), 1.0);
   }
   return vec4f(shade(in, base), u.look.y);
@@ -430,7 +483,7 @@ fn stones(p: vec2f) -> vec4f {
 fn fs_trench(in: VertexOut) -> @location(0) vec4f {
   // tudo do castelo em coordenadas LOCAIS (castelo base): a escala da missão
   // está só na matriz de modelo, então pedras, buracos e portão não mudam
-  let edgeDist = holeEdge(in.localPos);
+  let edgeDist = min(holeEdge(in.localPos), towerEdge(in.localPos));
   if (edgeDist < 0.0) {
     discard;
   }
@@ -546,7 +599,7 @@ ${HOLES_WGSL}
 // fortaleza: buracos não fazem sombra (a luz passa por eles)
 @fragment
 fn fs_shadow_trench(in: SOut) {
-  if (holeEdge(in.localPos) < 0.0) {
+  if (min(holeEdge(in.localPos), towerEdge(in.localPos)) < 0.0) {
     discard;
   }
 }

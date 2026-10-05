@@ -49,6 +49,19 @@ const HOLE_HALF_LEN = 1.0;   // o cilindro vai de 0.5 antes a 1.5 depois do impa
 export const HOLE_STRETCH_Y = 1.3;
 export const HOLE_RADIUS_MIN = 0.4;
 export const HOLE_RADIUS_MAX = 0.8;
+// Buraco que CRESCE: um tiro na borda de um buraco existente aumenta esse
+// buraco em vez de abrir outro (3–4 tiros no mesmo ponto = brecha grande).
+const HOLE_GROW = 0.32;            // quanto o raio aumenta por acerto
+export const HOLE_GROW_MAX = 2.0;  // raio máximo de um buraco
+const HOLE_MERGE = 1.5;            // "perto" = até 1.5x o raio (+0.25) do eixo do buraco
+
+// Desabamento da torre quando o setor dela zera: o shader corta tudo dentro
+// do raio da torre acima de uma altura (com borda irregular) que desce de
+// COLLAPSE_FROM até COLLAPSE_TO. A colisão usa o mesmo corte.
+export const NO_CUT = 1e6;
+export const COLLAPSE_FROM = 14.6;   // acima das ameias da torre (13.5 + 0.8)
+export const COLLAPSE_TO = 5.2;      // sobra um toco de ~5 de altura
+const COLLAPSE_RADIUS_PAD = 0.5;     // pega o anel saliente e as ameias
 export const DOOR_HP = 3;   // padrão (cada missão define o seu)
 export const TRENCH_REBUILD_DESTROYED = 0.5;
 
@@ -124,6 +137,8 @@ export function createTrench({ scale = 1, doorHP = DOOR_HP, sectorHits = 8 } = {
   return {
     boxes: fortressBoxes(), door: DOOR, doorHits: 0, doorOpen: false, holes: [],
     scale, doorHP, sectorHits, sectorDamage: { left: 0, right: 0 },
+    towerCut: [NO_CUT, NO_CUT],   // altura (local) do corte de cada torre
+    collapse: [null, null],       // animação do desabamento (main.js)
   };
 }
 
@@ -132,6 +147,8 @@ export function resetTrench(trench) {
   trench.doorHits = 0;
   trench.doorOpen = false;
   trench.sectorDamage = { left: 0, right: 0 };
+  trench.towerCut = [NO_CUT, NO_CUT];
+  trench.collapse = [null, null];
 }
 
 const toLocal = (trench, p) => [p[0] / trench.scale, p[1] / trench.scale, p[2] / trench.scale];
@@ -180,6 +197,10 @@ const inHole = (trench, p) => trench.holes.some(h => {
   return Math.hypot(v[0] - t * h.d[0], (v[1] - t * h.d[1]) / HOLE_STRETCH_Y, v[2] - t * h.d[2]) < h.r;
 });
 
+// ponto na parte de uma torre que já desabou (acima do corte)?
+const inCollapsed = (trench, p) => TOWERS.some((t, i) =>
+  p[1] > trench.towerCut[i] && Math.hypot(p[0] - t.x, p[2] - t.z) < t.r + COLLAPSE_RADIUS_PAD);
+
 function solidBoxes(trench) {
   return trench.doorOpen ? trench.boxes : [...trench.boxes, trench.door];
 }
@@ -188,7 +209,7 @@ function solidBoxes(trench) {
 // deixa passar pelos furos (são só dano visual) e bloqueia até cair.
 export function trenchHitTest(trench, posWorld) {
   const pos = toLocal(trench, posWorld);
-  const holed = inHole(trench, pos);
+  const holed = inHole(trench, pos) || inCollapsed(trench, pos);
   for (const b of solidBoxes(trench)) {
     if (inside(b, pos) && !(holed && b.destructible && !b.door)) return b;
   }
@@ -238,6 +259,24 @@ export function addHole(trench, impactWorld, vel, b, rand = Math.random) {
   // frente, e o tanque ficava preso numa "aba" que não aparecia
   const flat = Math.hypot(vel[0], vel[2]);
   const d = flat > 1e-3 ? [vel[0] / flat, 0, vel[2] / flat] : [0, 0, -1];
+  // acertou a borda de um buraco que já existe (mesma direção)? ele cresce
+  // e o centro anda um pouco para o lado do impacto
+  if (!b.door) {
+    const near = trench.holes.find(h => {
+      if (h.d[0] * d[0] + h.d[2] * d[2] < 0.7) return false;
+      const v = [impact[0] - h.c[0], impact[1] - h.c[1], impact[2] - h.c[2]];
+      const t = v[0] * h.d[0] + v[1] * h.d[1] + v[2] * h.d[2];
+      if (Math.abs(t) > h.halfLen + 0.5) return false;
+      const dist = Math.hypot(v[0] - t * h.d[0], (v[1] - t * h.d[1]) / HOLE_STRETCH_Y, v[2] - t * h.d[2]);
+      return dist < h.r * HOLE_MERGE + 0.25;
+    });
+    if (near && near.r < HOLE_GROW_MAX) {
+      const target = [impact[0] + d[0] * 0.5, impact[1], impact[2] + d[2] * 0.5];
+      near.c = near.c.map((c, k) => c + (target[k] - c) * 0.25);
+      near.r = Math.min(HOLE_GROW_MAX, near.r + HOLE_GROW);
+      return { hole: near, doorFell, grew: true };
+    }
+  }
   const hole = {
     c: [impact[0] + d[0] * 0.5, impact[1] + d[1] * 0.5, impact[2] + d[2] * 0.5],
     d,
@@ -272,6 +311,8 @@ export const HOLES_UNIFORM_BYTES = (1 + 2 * MAX_HOLES) * 16;
 export function holesUniformData(trench) {
   const d = new Float32Array(HOLES_UNIFORM_BYTES / 4);
   d[0] = trench.holes.length;
+  d[1] = trench.towerCut[0];   // corte do desabamento de cada torre (NO_CUT = em pé)
+  d[2] = trench.towerCut[1];
   trench.holes.forEach((h, i) => {
     d.set([...h.c, h.r], 4 + i * 8);
     d.set([...h.d, h.halfLen], 8 + i * 8);

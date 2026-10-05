@@ -4,6 +4,7 @@ import { buildGround, buildProjectile, buildRock, buildBox, FLOATS_PER_VERTEX } 
 import {
   createTrench, resetTrench, trenchHitTest, addHole, trenchDestroyed, trenchFull,
   holesUniformData, buildTrenchMesh, rubbleForHole, HOLES_UNIFORM_BYTES, TRENCH_REBUILD_DESTROYED, randomDebrisTint,
+  TOWERS, COLLAPSE_FROM, COLLAPSE_TO,
   tankBlocked, DOOR_HP, sectorIntegrity, castleBounds, towerMuzzles,
 } from "./trench.js";
 import { MISSIONS, unlockMission } from "./missions.js";
@@ -24,7 +25,7 @@ import { buildTrees } from "./scenery.js";
 import { createAimLine } from "./aimLine.js";
 import {
   litShaderCode, shadowShaderCode, objectUniformData, OBJECT_UNIFORM_BYTES, MATERIALS,
-  sceneUniformData, SCENE_UNIFORM_BYTES, sunViewProj, SHADOW_MAP_SIZE, MAX_POINT_LIGHTS,
+  sceneUniformData, SCENE_UNIFORM_BYTES, sunViewProj, SHADOW_MAP_SIZE, MAX_POINT_LIGHTS, MAX_CRATERS,
 } from "./lighting.js";
 import { createSky } from "./sky.js";
 import {
@@ -295,6 +296,21 @@ async function main() {
              drift: (Math.random() - 0.5) * 0.02, phase: Math.random() * 6.28 };
   });
 
+  // Crateras no chão onde os tiros erram (desenhadas no shader do chão)
+  const craters = [];   // {x, z, r, k}
+  function addCrater(x, z, r) {
+    if (castleBounds(trench).zMax > z && Math.abs(x) < castleBounds(trench).xMax && z > castleBounds(trench).zMin) return;   // embaixo do castelo: não aparece
+    if (craters.length >= MAX_CRATERS) craters.shift();
+    craters.push({ x, z, r: r * (0.85 + Math.random() * 0.3), k: 1 });
+  }
+
+  // Desabamento da torre: pedaços grandes caem com gravidade e viram entulho
+  const COLLAPSE_TIME = 1.6;           // segundos até o corte chegar embaixo
+  const MAX_CHUNKS = 28;
+  const chunkPool = Array.from({ length: MAX_CHUNKS }, () => makeDrawable(null, MATERIALS.rock));
+  const chunks = [];   // {slot, pos, vel, axis, angle, spin, size, tint}
+  let nextChunk = 0;
+
   // Entulho estático no chão (fica até a trincheira ser reconstruída)
   const MAX_RUBBLE = 80;
   const rubblePool = Array.from({ length: MAX_RUBBLE }, () => makeDrawable(null, MATERIALS.rock));
@@ -500,6 +516,7 @@ async function main() {
     sound.playExplosion(boomStrength(pos));
   }
 
+  const dirtTint = () => { const k = 0.6 + Math.random() * 0.5; return Math.random() < 0.6 ? [0.62 * k, 0.42 * k, 0.24 * k] : [0.22 * k, 0.5 * k, 0.16 * k]; };
   const metalTint = () => { const k = 0.5 + Math.random() * 0.6; return [1.1 * k, 0.35 * k, 0.3 * k]; };
 
   function fire() {
@@ -533,8 +550,11 @@ async function main() {
       }
       // castelo: buraco irregular onde o tiro atravessa, borda queimada, entulho no chão
       const b = trenchHitTest(trench, p.pos);
-      const { hole, doorFell } = addHole(trench, p.pos, p.vel, b);
+      const { hole, doorFell, grew } = addHole(trench, p.pos, p.vel, b);
       uploadHoles();
+      // setor zerou: a torre dele desaba (esq. = torre 0, dir. = torre 1)
+      const integ = sectorIntegrity(trench);
+      [integ.left, integ.right].forEach((v, i) => { if (v <= 0 && !trench.collapse[i]) startCollapse(i); });
       if (hole && !b.door) spawnRubble(rubbleForHole(hole));
       blast(p.pos, p.vel);
       if (doorFell) {
@@ -543,14 +563,89 @@ async function main() {
         setStatus("Portão derrubado!", true);
       } else if (b.door) {
         setStatus(`Portão atingido: ${trench.doorHits}/${trench.doorHP}`, true);
+      } else if (grew) {
+        setStatus("O buraco aumentou!", true);
       } else {
         setStatus("Impacto no castelo!", true);
       }
     },
-    onHitGround() {
+    onHitGround(p) {
+      const at = [p.pos[0], 0.3, p.pos[2]];
+      spawnExplosion(at);
+      emitter.emit(at, 30, dirtTint, 0.7);
+      shakeTime = SHAKE_DURATION;
+      sound.playExplosion(boomStrength(p.pos) * 0.8);
+      addCrater(p.pos[0], p.pos[2], 1.3);
       setStatus("Impacto no chão", true);
     },
   };
+
+  // ---------- Desabamento da torre ----------
+  function startCollapse(i) {
+    trench.collapse[i] = { t: 0, nextChunk: 0, booms: 0 };
+    toast("TORRE DESMORONOU!", 1.6);
+    setStatus(i === 0 ? "A torre esquerda desabou!" : "A torre direita desabou!", true);
+  }
+  function updateCollapse(dt) {
+    const s = trench.scale;
+    TOWERS.forEach((tw, i) => {
+      const c = trench.collapse[i];
+      if (!c || c.done) return;
+      c.t += dt;
+      const k = Math.min(1, c.t / COLLAPSE_TIME);
+      const cut = COLLAPSE_FROM - (COLLAPSE_FROM - COLLAPSE_TO) * k * k;   // acelera, como queda
+      trench.towerCut[i] = cut;
+      uploadHoles();
+      shakeTime = SHAKE_DURATION;          // tremor contínuo enquanto cai
+      // explosões na borda que desce, no começo, no meio e no fim
+      if (c.booms < 3 && c.t >= c.booms * 0.55) {
+        const at = [(tw.x + (Math.random() - 0.5) * tw.r) * s, cut * s, (tw.z + tw.r * 0.8) * s];
+        spawnExplosion(at);
+        emitter.emit(at, 40);
+        sound.playExplosion(1);
+        c.booms++;
+      }
+      // pedaços grandes saindo da borda quebrada (mais para a frente/fora)
+      while (c.t >= c.nextChunk && k < 1) {
+        c.nextChunk += 0.07;
+        const a = Math.random() * Math.PI * 2;
+        const out = 1.2 + Math.random() * 2.8;
+        const sz = (0.3 + Math.random() * 0.45) * s;
+        const ax = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5]; const al = Math.hypot(...ax) || 1;
+        if (chunks.length >= MAX_CHUNKS) chunks.shift();
+        useMesh(chunkPool[nextChunk], randomRock());
+        chunks.push({
+          slot: nextChunk, size: sz, tint: randomDebrisTint(),
+          pos: [(tw.x + Math.cos(a) * tw.r * 0.9) * s, (cut + 0.4) * s, (tw.z + Math.sin(a) * tw.r * 0.9) * s],
+          vel: [Math.cos(a) * out, 1 + Math.random() * 2.5, Math.sin(a) * out + 1.5],
+          axis: ax.map(v => v / al), angle: 0, spin: 2 + Math.random() * 5,
+        });
+        nextChunk = (nextChunk + 1) % MAX_CHUNKS;
+      }
+      if (k >= 1) {
+        c.done = true;
+        // monte de entulho em volta da base
+        const pile = [];
+        for (let n = 0; n < 12; n++) {
+          const a = Math.random() * Math.PI * 2, r = (tw.r + 0.4 + Math.random() * 2.2) * s;
+          pile.push({ pos: [tw.x * s + Math.cos(a) * r, 0, tw.z * s + Math.abs(Math.sin(a)) * r], size: (0.25 + Math.random() * 0.35) * s });
+        }
+        spawnRubble(pile);
+      }
+    });
+  }
+  // pedaços em queda: gravidade e giro; ao tocar o chão viram entulho parado
+  function updateChunks(dt) {
+    for (let i = chunks.length - 1; i >= 0; i--) {
+      const q = chunks[i];
+      stepProjectile(q, dt);
+      q.angle += q.spin * dt;
+      if (q.pos[1] <= q.size * 0.4) {
+        spawnRubble([{ pos: [q.pos[0], 0, q.pos[2]], size: q.size }]);
+        chunks.splice(i, 1);
+      }
+    }
+  }
 
   // ---------- Inimigos: tiros das torres e dos tanques ----------
   function enemyFire(from, lead, spread) {
@@ -609,7 +704,8 @@ async function main() {
         enemyShots.splice(i, 1);
       } else if (s.pos[1] <= 0.08) {
         spawnExplosion([s.pos[0], 0.3, s.pos[2]]);
-        emitter.emit([s.pos[0], 0.3, s.pos[2]], 20);   // tiro inimigo no chão: menor
+        emitter.emit([s.pos[0], 0.3, s.pos[2]], 20, dirtTint, 0.7);   // tiro inimigo no chão: menor
+        addCrater(s.pos[0], s.pos[2], 0.95);
         sound.playExplosion(boomStrength(s.pos) * 0.6);
         enemyShots.splice(i, 1);
       } else if (Math.hypot(s.pos[0] - state.x, s.pos[2] - state.z) > 150) {
@@ -624,7 +720,7 @@ async function main() {
     mission = MISSIONS[i];
     trench = createTrench({ scale: mission.castleScale, doorHP: mission.doorHP, sectorHits: mission.sectorHits });
     uploadHoles();
-    for (const arr of [projectiles, rubble, explosions, enemyShots]) arr.length = 0;
+    for (const arr of [projectiles, rubble, explosions, enemyShots, craters, chunks]) arr.length = 0;
     emitter.clear();
     Object.assign(state, { x: 0, z: 1.5, yaw: 0, aimPitch: 0.35, vel: 0, turnVel: 0 });
     Object.assign(cam, { yaw: 0, pitch: 0.36 });
@@ -810,6 +906,8 @@ async function main() {
       updateProjectiles(projectiles, dt, isPlayerTargetSolid, projectileEvents);
       if (mode === "playing") updateEnemies(dt);
       emitter.update(dt);
+      updateCollapse(dt);
+      updateChunks(dt);
       for (let i = explosions.length - 1; i >= 0; i--) {
         explosions[i].age += dt;
         explosions[i].pos[1] += FIREBALL_RISE * dt;
@@ -880,7 +978,7 @@ async function main() {
         + FLASH_INTENSITY * Math.max(0, 1 - e.age / FLASH_TIME) ** 2,
     }));
     const glow = mode === "victory" && victoryFly ? victoryFly.t : 0;
-    device.queue.writeBuffer(sceneBuffer, 0, sceneUniformData(lightVP, lights, cs, mission.ivyBoost, glow));
+    device.queue.writeBuffer(sceneBuffer, 0, sceneUniformData(lightVP, lights, cs, mission.ivyBoost, glow, craters));
     sky.update(view, FOV_Y, canvas.width / canvas.height);
 
     if (mode !== "menu") {
@@ -912,6 +1010,10 @@ async function main() {
       writeObject(d.barrel, m.barrel);
     });
     for (const r of rubble) writeObject(rubblePool[r.slot], r.model, r.tint, r.pattern);
+    for (const q of chunks) {
+      writeObject(chunkPool[q.slot], mat4.multiply(mat4.translation(...q.pos),
+        mat4.multiply(mat4.rotationAxis(q.axis, q.angle), scaleMatrix(q.size))), q.tint, 2);
+    }
     const particles = emitter.alive();
     for (const q of particles) {
       const d = debrisPool[q.slot];
@@ -1006,6 +1108,7 @@ async function main() {
     for (const p of projectiles) drawObject(pass, projectilePool[p.slot]);
     for (const s of enemyShots) drawObject(pass, enemyShotPool[s.slot]);
     for (const r of rubble) drawObject(pass, rubblePool[r.slot]);
+    for (const q of chunks) drawObject(pass, chunkPool[q.slot]);
     pass.setPipeline(debrisPipeline);
     pass.setBindGroup(1, sceneBindGroup);
     for (const q of particles) drawObject(pass, debrisPool[q.slot]);

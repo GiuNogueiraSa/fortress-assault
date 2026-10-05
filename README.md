@@ -34,7 +34,7 @@ desativado, ative em `chrome://flags/#enable-unsafe-webgpu`.
 
 ## 📊 Documentação
 
-- **[ai-log.md](docs/ai-log.md):** 30 entradas cronológicas de uso de IA
+- **[ai-log.md](docs/ai-log.md):** 32 entradas cronológicas de uso de IA
   (prompt, o que foi feito, arquivos, problemas e correções).
 - **[DEVELOPMENT_REPORT.md](docs/DEVELOPMENT_REPORT.md):** relatório técnico
   completo.
@@ -57,6 +57,12 @@ no slide, e use Ctrl+P para gerar o PDF.
   map) e iluminação por pixel.
 - Castelo destrutível em qualquer ponto, com buracos recortados no shader; dá
   para atravessá-lo.
+  - **Buracos que crescem:** acertar a borda de um buraco o aumenta, e 3–4
+    tiros no mesmo ponto abrem uma brecha grande.
+  - **Torres que desmoronam:** quando um setor zera, o topo da torre desaba,
+    com explosões e pedaços caindo que viram entulho.
+  - **Crateras no chão:** cada tiro que erra deixa uma marca de fuligem com
+    terra revirada.
 - Som sintetizado com Tone.js:
   - explosão, tiro, impacto e alerta de tempo;
   - vitória, derrota e seleção;
