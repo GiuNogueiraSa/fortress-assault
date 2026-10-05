@@ -54,6 +54,16 @@ export const mat4 = {
       -(r+l)/(r-l), -(t+b)/(t-b), n/(n-f), 1,
     ]);
   },
+  // rotação de `rad` em torno de um eixo unitário qualquer (Rodrigues)
+  rotationAxis(axis, rad) {
+    const [x, y, z] = axis, c = Math.cos(rad), s = Math.sin(rad), t = 1 - c;
+    return new Float32Array([
+      t*x*x + c,   t*x*y + s*z, t*x*z - s*y, 0,
+      t*x*y - s*z, t*y*y + c,   t*y*z + s*x, 0,
+      t*x*z + s*y, t*y*z - s*x, t*z*z + c,   0,
+      0, 0, 0, 1,
+    ]);
+  },
   translation(tx, ty, tz) {
     return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, tx,ty,tz,1]);
   },

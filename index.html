@@ -147,7 +147,7 @@
         <div id="hud-bottom">
           <div class="panel" id="controls-hint">
             <span id="lock-hint">Clique para travar o mouse (câmera 360°)</span> ·
-            W/S andar · A/D girar · ↑/↓ cano · Espaço atirar · M menu
+            W/S andar · A/D girar · ↑/↓ cano · Espaço atirar · M menu · N música
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@
             <div><kbd>W</kbd>/<kbd>S</kbd> andar (com inércia) · <kbd>A</kbd>/<kbd>D</kbd> girar o tanque</div>
             <div><kbd>↑</kbd>/<kbd>↓</kbd> elevação do cano · <kbd>Espaço</kbd> atirar (a linha mostra a trajetória)</div>
             <div>Mouse (clique no jogo para travar): câmera 360° ao redor do tanque</div>
-            <div><kbd>M</kbd> abre este menu (pausa). <kbd>Esc</kbd> solta o mouse.</div>
+            <div><kbd>M</kbd> abre este menu (pausa). <kbd>N</kbd> liga/desliga a música. <kbd>Esc</kbd> solta o mouse.</div>
             <div style="margin-top:8px">Destrua os 3 setores (Torre esq., Portão, Torre dir.) para conquistar a fortaleza.
               Na missão 2 as torres atiram de volta e a munição é limitada; na 3 há tanques inimigos e tempo.</div>
           </div>
@@ -188,6 +188,7 @@
               CC BY-NC-SA 3.0, adaptado para WGSL.</div>
             <div>Tanque: modelo "Tank" de Willy Decarpentrie (Sketchfab) — CC BY 4.0.</div>
             <div>Renderização: WebGPU + WGSL (iluminação, sombras, castelo e efeitos procedurais).</div>
+            <div>Som: Tone.js (MIT), síntese em tempo real.</div>
             <div>Desenvolvido com apoio de IA (Claude Code) — processo em docs/ai-log.md.</div>
           </div>
           <div class="btns" style="margin-top:14px"><button class="btn" data-back>Voltar</button></div>
@@ -208,6 +209,8 @@
     </div>
   </div>
 
+<!-- Tone.js (MIT), cópia local para funcionar sem internet; define window.Tone -->
+<script src="assets/vendor/Tone.js"></script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

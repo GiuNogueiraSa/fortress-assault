@@ -24,13 +24,20 @@
 //     meia tela e derrubavam o jogo para ~22 fps. Aqui a borda usa a derivada
 //     de tela (fwidth) do campo já calculado: mesmo traço preto, com largura
 //     em pixels, e ~5x menos trabalho por pixel.
+//   - Explosão "realista": dura 2.5 s (tempo do efeito desacelerado), cores
+//     em degradê suave branco → amarelo → laranja → vermelho → preto (no lugar
+//     da paleta posterizada), escurecendo com o tempo, e turbulência extra com
+//     o gradient noise 3D (Perlin) deformando o campo.
 
 // Layout do uniform buffer (112 bytes). vec3f ocupa 16 bytes de alinhamento,
 // por isso cada vec3f vem "colado" com um f32 para não sobrar buraco.
 export const EXPLOSION_UNIFORM_BYTES = 112;
 // Com repeat = 1 o ciclo do shader é de 2 s, mas medido na prática nada fica
 // visível a partir de t ≈ 1.3 s — dá para parar de desenhar o quad aí.
-export const EXPLOSION_DURATION = 1.3;
+// 2.5 s: o efeito original some em ~1.3 s; aqui o tempo do efeito corre mais
+// devagar (EFFECT_TIME_SCALE) para a explosão durar 2.5 s
+export const EXPLOSION_DURATION = 2.5;
+const EFFECT_TIME_SCALE = 1.3 / EXPLOSION_DURATION;
 
 // Monta os dados do uniform buffer. `view` é a matriz de visão (lookAt): as
 // linhas dela são os eixos direita/cima da câmera, usados para o billboard.
@@ -116,6 +123,11 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOut {
   return out;
 }
 
+// tempo do efeito (desacelerado para durar EXPLOSION_DURATION)
+fn etime() -> f32 {
+  return u.time * ${EFFECT_TIME_SCALE.toFixed(4)};
+}
+
 // Parâmetros (eram uniforms com valor padrão no Godot)
 const SIZE = 5.0;
 const DISPERSE = 1.0;
@@ -145,7 +157,7 @@ fn worley(s: vec3f) -> f32 {
       for (var z = -1; z <= 1; z++) {
         let neighbor = vec3f(f32(x), f32(y), f32(z));
         var pt = fract(n_rand3(si + neighbor));
-        pt = 0.5 + 0.5 * sin(DISPERSE * u.time + 6.2831 * pt);
+        pt = 0.5 + 0.5 * sin(DISPERSE * etime() + 6.2831 * pt);
         let diff = neighbor + pt - sf;
         m_dist = min(m_dist, length(diff));
       }
@@ -155,22 +167,22 @@ fn worley(s: vec3f) -> f32 {
 }
 
 fn boom(p: vec2f) -> f32 {
-  let rep = max(glsl_mod(u.time * BOOM_REPEAT, 2.0), 0.001);
+  let rep = max(glsl_mod(etime() * BOOM_REPEAT, 2.0), 0.001);
   let shape = 1.0 - dot(p, p) / (rep * BOOM_SHAPE) - rep * 2.0;
-  let distortion = noise(vec3f(p * BOOM_DISTORTION, u.time * 0.5));
-  let bubbles = BOOM_BUBBLES - pow(worley(vec3f(p * 1.2, u.time * 2.0)), 3.0);
+  let distortion = noise(vec3f(p * BOOM_DISTORTION, etime() * 0.5));
+  let bubbles = BOOM_BUBBLES - pow(worley(vec3f(p * 1.2, etime() * 2.0)), 3.0);
   let effects = BOOM_BW * bubbles + (1.0 - BOOM_BW) * distortion;
   return shape + effects;
 }
 
 fn smoke(p: vec2f) -> f32 {
-  let rep = max(glsl_mod(u.time * SMOKE_REPEAT, 2.0), 0.001);
+  let rep = max(glsl_mod(etime() * SMOKE_REPEAT, 2.0), 0.001);
   let rise = vec2f(0.0, 2.0) * pow(rep / 1.45, 2.0) * 1.5;   // fumaça sobe com o tempo
   let q = p - rise;
   let shape = 1.0 - dot(q, q) / (rep * SMOKE_SHAPE) - pow(rep * 1.5, 0.5);
-  let distortion = noise(vec3f(p * SMOKE_DISTORTION - rise, u.time * 0.1));
+  let distortion = noise(vec3f(p * SMOKE_DISTORTION - rise, etime() * 0.1));
   let rise2 = vec2f(0.0, 2.0) * pow(rep / 1.65, 2.0) * 1.5;
-  let bubbles = SMOKE_BUBBLES - pow(worley(vec3f(p / pow(rep, 0.35) - rise2, u.time * 0.1)), 2.0);
+  let bubbles = SMOKE_BUBBLES - pow(worley(vec3f(p / pow(rep, 0.35) - rise2, etime() * 0.1)), 2.0);
   let effects = SMOKE_BW * bubbles + (1.0 - SMOKE_BW) * distortion;
   return shape + effects;
 }
@@ -184,41 +196,53 @@ fn posterize(v: f32, n: i32) -> f32 {
   return floor(v * nf) / (nf - 1.0);
 }
 
+// Degradê do fogo por "calor" h (0..1): preto → vermelho → laranja → amarelo → branco
+fn fireRamp(h: f32) -> vec3f {
+  let c0 = vec3f(0.04, 0.025, 0.02);
+  let c1 = vec3f(0.72, 0.10, 0.03);
+  let c2 = vec3f(1.00, 0.45, 0.05);
+  let c3 = vec3f(1.00, 0.84, 0.25);
+  let c4 = vec3f(1.00, 0.98, 0.88);
+  let x = clamp(h, 0.0, 1.0) * 4.0;
+  if (x < 1.0) { return mix(c0, c1, smoothstep(0.0, 1.0, x)); }
+  if (x < 2.0) { return mix(c1, c2, smoothstep(1.0, 2.0, x)); }
+  if (x < 3.0) { return mix(c2, c3, smoothstep(2.0, 3.0, x)); }
+  return mix(c3, c4, smoothstep(3.0, 4.0, x));
+}
+
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4f {
-  var boom_pal = array<vec3f, 4>(
-    vec3f(0.32, 0.09, 0.04), vec3f(0.80, 0.18, 0.04), vec3f(1.0, 0.52, 0.08), vec3f(1.0, 0.88, 0.35));
-  var smoke_pal = array<vec3f, 3>(
-    vec3f(0.20, 0.15, 0.13), vec3f(0.32, 0.26, 0.22), vec3f(0.45, 0.39, 0.34));
+  var pos = (in.uv - vec2f(0.5, 0.4)) * SIZE;
+  // turbulência: o gradient noise 3D (Perlin) desloca o ponto antes do campo
+  let tp = vec3f(pos * 0.7, etime() * 0.6);
+  pos = pos + 0.45 * vec2f(noise(tp), noise(tp + vec3f(5.2, 1.3, 2.7)));
 
-  let pos = (in.uv - vec2f(0.5, 0.4)) * SIZE;
+  let age01 = clamp(u.time / ${EXPLOSION_DURATION.toFixed(2)}, 0.0, 1.0);   // 0 → 1 ao longo da explosão
 
   let boom_val = boom(pos);
   let boom_a = step(0.0, boom_val);
-  let bi = clamp(i32(posterize(boom_val, 4) * 4.0), 0, 3);
-  let boom_col = boom_pal[bi] - vec3f(1.0 - boom_a);
+  // calor: mais forte no núcleo (campo alto) e no começo; esfria com o tempo
+  let heat = boom_val * 1.5 + 0.55 - 0.75 * smoothstep(0.05, 0.9, age01);
+  let boom_col = fireRamp(heat);
 
   let smoke_val = smoke(pos);
   let smoke_a = step(0.0, smoke_val);
-  let si = clamp(i32(posterize(smoke_val, 3) * 3.0), 0, 2);
-  let smoke_col = smoke_pal[si] - vec3f(1.0 - smoke_a);
+  // fumaça: marrom-escuro que vai ficando preta
+  let smoke_col = mix(vec3f(0.30, 0.24, 0.20), vec3f(0.06, 0.05, 0.05), clamp(age01 * 1.2 - smoke_val * 0.6, 0.0, 1.0));
 
   // contorno preto "cartoon": |campo| / variação do campo por pixel = distância
   // até a borda em pixels (mesma ideia do original, via derivada de tela)
   let field = max(boom_val, smoke_val);
   let px = abs(field) / max(fwidth(field), 1e-5);
-  let b = step(1.6, px);
+  let b = smoothstep(0.8, 1.8, px);
   let bw = step(smoke_val * 1.25, boom_val);
 
   let color = bw * boom_col + (1.0 - bw) * smoke_col;
   let alpha = bw * boom_a + (1.0 - bw) * smoke_a;
-
-  // alpha é sempre 0 ou 1: fora da explosão descarta; dentro, alpha == 1 e o
-  // select(0.5, color, alpha == 1) do original vira só "color".
   if (alpha < 0.5) {
     discard;
   }
-  return vec4f(color - vec3f(1.0 - b), 1.0);
+  return vec4f(color * b, 1.0);
 }
 
 // Anel de onda de choque (efeito próprio, não vem do shader original):

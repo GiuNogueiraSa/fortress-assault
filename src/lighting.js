@@ -66,13 +66,17 @@ export function objectUniformData(viewProj, model, material, camPos, tint = [1, 
   return d;
 }
 
-// Uniform da cena (grupo 1): matriz do sol, clarão da explosão e parâmetros
-export const SCENE_UNIFORM_BYTES = 96;
-export function sceneUniformData(lightVP, flashPos, flashIntensity, castleScale = 1, ivyBoost = 0, yardGlow = 0) {
+// Luzes dinâmicas das explosões: uma PointLight por explosão ativa (até 4)
+export const MAX_POINT_LIGHTS = 4;
+export const POINT_LIGHT_RANGE = 20;
+// Uniform da cena (grupo 1): matriz do sol, luzes das explosões e parâmetros
+export const SCENE_UNIFORM_BYTES = 64 + MAX_POINT_LIGHTS * 16 + 16;
+// lights: [{ pos: [x,y,z], intensity }]
+export function sceneUniformData(lightVP, lights, castleScale = 1, ivyBoost = 0, yardGlow = 0) {
   const d = new Float32Array(SCENE_UNIFORM_BYTES / 4);
   d.set(lightVP, 0);
-  d.set([flashPos[0], flashPos[1], flashPos[2], flashIntensity], 16);
-  d.set([1 / SHADOW_MAP_SIZE, castleScale, ivyBoost, yardGlow], 20);
+  lights.slice(0, MAX_POINT_LIGHTS).forEach((l, i) => d.set([l.pos[0], l.pos[1], l.pos[2], l.intensity], 16 + i * 4));
+  d.set([1 / SHADOW_MAP_SIZE, castleScale, ivyBoost, yardGlow], 16 + MAX_POINT_LIGHTS * 4);
   return d;
 }
 
@@ -130,7 +134,7 @@ export const litShaderCode = /* wgsl */ `
 ${OBJECT_STRUCT}
 struct Scene {
   lightVP: mat4x4f,
-  flash: vec4f,      // xyz: posição do clarão, w: intensidade
+  lights: array<vec4f, ${MAX_POINT_LIGHTS}>,   // luzes das explosões: xyz posição, w intensidade
   params: vec4f,     // x: texel do shadow map, y: escala do castelo, z: reforço de hera, w: brilho do pátio (vitória)
 };
 @group(1) @binding(0) var<uniform> scene: Scene;
@@ -177,7 +181,9 @@ const FILL_COLOR = vec3f(0.3, 0.4, 0.6);         // azul claro
 const FILL_STRENGTH = 0.85;
 const SKY_AMBIENT = vec3f(0.22, 0.28, 0.38);
 const GROUND_AMBIENT = vec3f(0.12, 0.15, 0.11);
-const FLASH_COLOR = vec3f(1.0, 0.72, 0.32);
+const EXPL_LIGHT_COLOR = vec3f(1.0, 0.7, 0.2);   // amarelo/laranja quente
+const EXPL_LIGHT_RANGE = ${POINT_LIGHT_RANGE.toFixed(1)};
+const EXPL_LIGHT_UNIT = 3.0;   // distância medida em "unidades de 3 m" na atenuação
 const FOG_COLOR = ${wgslVec3(HORIZON_COLOR)};
 const FOG_START = 26.0;
 const FOG_END = 75.0;
@@ -235,10 +241,23 @@ fn shadeFull(in: VertexOut, baseColor: vec3f, normalIn: vec3f, specK: f32, shin:
   // no pátio: luz ambiente quente e forte (claro mesmo onde a sombra das muralhas cai)
   let ambient = mix(mix(GROUND_AMBIENT, SKY_AMBIENT, 0.5 + 0.5 * N.y), YARD_AMBIENT * (0.9 + 0.9 * scene.params.w), warm);
   let sunCol = mix(LIGHT_COLOR, YARD_LIGHT * 1.3, warm);
-  // clarão da explosão: luz pontual laranja que some em ~0.12 s
-  let toF = scene.flash.xyz - in.worldPos;
-  let dF = length(toF);
-  let flash = FLASH_COLOR * scene.flash.w * max(dot(N, toF / max(dF, 0.001)), 0.0) / (1.0 + 0.06 * dF * dF);
+  // luzes das explosões (PointLight dinâmica): I / (1 + d²), com d em unidades
+  // de EXPL_LIGHT_UNIT, apagando suavemente até o raio de 20
+  var flash = vec3f(0.0);
+  for (var li = 0; li < ${MAX_POINT_LIGHTS}; li++) {
+    let pl = scene.lights[li];
+    if (pl.w <= 0.0) {
+      continue;
+    }
+    let toL = pl.xyz - in.worldPos;
+    let dL = length(toL);
+    if (dL > EXPL_LIGHT_RANGE) {
+      continue;
+    }
+    let dn = dL / EXPL_LIGHT_UNIT;
+    let att = pl.w / (1.0 + dn * dn) * (1.0 - smoothstep(EXPL_LIGHT_RANGE * 0.7, EXPL_LIGHT_RANGE, dL));
+    flash += EXPL_LIGHT_COLOR * att * max(dot(N, toL / max(dL, 0.001)), 0.0);
+  }
   let edge = mix(rim, 1.0, sqrt(max(dot(N, V), 0.0)));
   let lit = albedo * (ambient + 0.95 * diffuse * sunCol + FILL_STRENGTH * fill * FILL_COLOR + flash) + spec * sunCol;
   let fog = smoothstep(FOG_START, FOG_END, distance(u.camPos.xyz, in.worldPos)) * 0.6;

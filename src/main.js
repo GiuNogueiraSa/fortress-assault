@@ -12,6 +12,8 @@ import {
   showHud, setMissionTitle, setSectors, setHP, setAmmo, setTimer, setEnemiesLeft, toast, updateToast, drawMinimap,
 } from "./hud.js";
 import { aimAt, createEnemyTanks, enemyTankHit, shotHitsPlayer } from "./enemies.js";
+import { ParticleEmitter, buildParticleShapes, PARTICLES_PER_EXPLOSION } from "./explosion-particles.js";
+import { ExplosionSound } from "./explosion-sound.js";
 import {
   buildBoxTank, buildModelTank, buildMuzzleFlash, setTankRig, barrelLength, tankModelMatrices,
 } from "./tank.js";
@@ -21,7 +23,7 @@ import { buildTrees } from "./scenery.js";
 import { createAimLine } from "./aimLine.js";
 import {
   litShaderCode, shadowShaderCode, objectUniformData, OBJECT_UNIFORM_BYTES, MATERIALS,
-  sceneUniformData, SCENE_UNIFORM_BYTES, sunViewProj, SHADOW_MAP_SIZE,
+  sceneUniformData, SCENE_UNIFORM_BYTES, sunViewProj, SHADOW_MAP_SIZE, MAX_POINT_LIGHTS,
 } from "./lighting.js";
 import { createSky } from "./sky.js";
 import {
@@ -274,13 +276,12 @@ async function main() {
   const randomPattern = () => (Math.random() < 0.4 ? 2 : 0);   // 40% com manchas
   const scaleMatrix = s => new Float32Array([s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1]);
 
-  // Destroços da explosão: 40-60 lascas de 0.05 a 0.25 (mais pequenas que
-  // grandes), mesma gravidade dos projéteis, giram, quicam uma vez e somem
-  // aos poucos. Pool fixo.
-  const MAX_DEBRIS = 240;
-  const DEBRIS_PER_HIT_MIN = 40, DEBRIS_PER_HIT_MAX = 60;
-  const DEBRIS_SIZE_MIN = 0.05, DEBRIS_SIZE_MAX = 0.25;
-  const DEBRIS_FADE = 0.7;   // segundos finais em que a lasca vai sumindo
+  // Partículas 3D da explosão (src/explosion-particles.js): pool fixo de 240
+  // (4 explosões de 60), cada uma com um drawable próprio; as malhas (cubos
+  // irregulares, esferas, octaedros deformados) são compartilhadas.
+  const MAX_DEBRIS = 4 * PARTICLES_PER_EXPLOSION;
+  const particleMeshes = buildParticleShapes().map(makeMesh);
+  const emitter = new ParticleEmitter(MAX_DEBRIS, particleMeshes.length);
   const debrisPool = Array.from({ length: MAX_DEBRIS }, () => makeDrawable(null, MATERIALS.rock));
 
   // Entulho estático no chão (fica até a trincheira ser reconstruída)
@@ -354,6 +355,7 @@ async function main() {
   const FIREBALL_RISE = 0.5;       // a bola de fogo sobe devagar (unidades/s)
   const FLASH_TIME = 0.12;         // clarão de luz no impacto (s)
   const FLASH_INTENSITY = 3.0;
+  const EXPLOSION_LIGHT = 2.0;     // intensidade inicial da luz de cada explosão
   // O anel é um quad voltado para a câmera; com a câmera no alto, a metade de
   // cima dele "deita" para dentro do muro e o teste de profundidade a esconde.
   // Puxá-lo um pouco na direção da câmera deixa o anel inteiro na frente do muro.
@@ -444,22 +446,21 @@ async function main() {
       else if (mode === "paused") resumeGame();
       return;
     }
+    if (k === "n") { const on = sound.toggleMusic(); toast(on ? "Música ligada" : "Música desligada", 1.0); return; }
     keys.add(k);
     if (e.key === " " && mode === "playing") fire();
   });
   window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 
-  // som curto (alerta de tempo), sem arquivos: oscilador do WebAudio
-  let audio = null;
-  function beep(freq = 880, dur = 0.12) {
-    try {
-      audio = audio || new AudioContext();
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = freq; g.gain.value = 0.08;
-      o.connect(g); g.connect(audio.destination);
-      o.start(); o.stop(audio.currentTime + dur);
-    } catch { /* sem áudio: segue sem som */ }
-  }
+  // ---------- Som (Tone.js, src/explosion-sound.js) ----------
+  // O navegador só libera áudio depois de um gesto: inicia no 1º clique/tecla
+  // e já começa a música ambiente. N liga/desliga a música.
+  const sound = new ExplosionSound();
+  const startSound = () => sound.init().then(() => sound.startAmbientMusic());
+  window.addEventListener("pointerdown", startSound, { once: true });
+  window.addEventListener("keydown", startSound, { once: true });
+  // volume da explosão pela distância até a câmera
+  const boomStrength = pos => (lastEye ? 1 / (1 + Math.hypot(pos[0] - lastEye[0], pos[2] - lastEye[2]) / 18) : 1);
 
   let flashTimer = 0;
   let lastShotAt = -999;
@@ -467,54 +468,25 @@ async function main() {
   let nextSlot = 0;
   const explosions = []; // {pos:[x,y,z], age: segundos desde o impacto, slot:index}
   let nextExplosionSlot = 0;
-  const debris = [];     // {pos, vel, slot, rot, spin, size, tint, pattern, age, life}
-  let nextDebrisSlot = 0;
   let shakeTime = 0;
   let shakePhase = 0;
-  const flash = { pos: [0, 0, 0], t: 0 };
   let elapsed = 0;
 
   function spawnExplosion(pos) {
     if (explosions.length >= MAX_EXPLOSIONS) explosions.shift();
-    explosions.push({ pos: [...pos], age: 0, slot: nextExplosionSlot });
+    explosions.push({ pos: [...pos], origin: [...pos], age: 0, slot: nextExplosionSlot });
     nextExplosionSlot = (nextExplosionSlot + 1) % MAX_EXPLOSIONS;
   }
-  // explosão completa num ponto (fogo, lascas, tremor, clarão)
-  function blast(pos, vel, tintFn = randomDebrisTint) {
-    spawnExplosion(pos);
-    spawnDebris(pos, vel, tintFn);
+  // explosão completa num ponto: fogo (shader), 60 partículas 3D, luz
+  // dinâmica (vem da própria explosão), tremor e som
+  function blast(pos, vel, tintFn = null) {
+    spawnExplosion([pos[0] - vel[0] * 0.03, pos[1], pos[2] - vel[2] * 0.03]);   // um pouco fora da parede
+    emitter.emit(pos, PARTICLES_PER_EXPLOSION, tintFn);
     shakeTime = SHAKE_DURATION;
     shakePhase = Math.random() * 100;
-    flash.pos = [pos[0] - vel[0] * 0.05, pos[1] + 0.3, pos[2] - vel[2] * 0.05];
-    flash.t = FLASH_TIME;
+    sound.playExplosion(boomStrength(pos));
   }
 
-  // Lascas saindo do impacto em direções aleatórias, com viés para trás do tiro
-  function spawnDebris(pos, shotVel, tintFn = randomDebrisTint) {
-    const back = Math.hypot(shotVel[0], shotVel[2]) || 1;
-    const bx = -shotVel[0] / back, bz = -shotVel[2] / back;
-    const count = DEBRIS_PER_HIT_MIN + Math.floor(Math.random() * (DEBRIS_PER_HIT_MAX - DEBRIS_PER_HIT_MIN + 1));
-    for (let k = 0; k < count; k++) {
-      const a = Math.random() * Math.PI * 2;
-      const out = 3.0 + Math.random() * 4.0;   // mais horizontal que vertical
-      if (debris.length >= MAX_DEBRIS) debris.shift();
-      const r = Math.random();
-      debris.push({
-        pos: [pos[0] + bx * 0.35, pos[1], pos[2] + bz * 0.35],
-        vel: [Math.cos(a) * out + bx * 2.0, 1.0 + Math.random() * 2.5, Math.sin(a) * out + bz * 2.0],
-        slot: nextDebrisSlot,
-        size: DEBRIS_SIZE_MIN + (DEBRIS_SIZE_MAX - DEBRIS_SIZE_MIN) * r * r,
-        age: 0,
-        life: 1.4 + Math.random() * 1.0,
-        tint: tintFn(),
-        pattern: randomPattern(),
-        rot: [Math.random() * 6.28, Math.random() * 6.28],
-        spin: [(Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20],
-      });
-      useMesh(debrisPool[nextDebrisSlot], randomChip());
-      nextDebrisSlot = (nextDebrisSlot + 1) % MAX_DEBRIS;
-    }
-  }
   const metalTint = () => { const k = 0.5 + Math.random() * 0.6; return [1.1 * k, 0.35 * k, 0.3 * k]; };
 
   function fire() {
@@ -529,6 +501,7 @@ async function main() {
     if (projectiles.length >= MAX_PROJECTILES) projectiles.shift();
     projectiles.push({ ...spawnProjectile(state), slot: nextSlot });
     nextSlot = (nextSlot + 1) % MAX_PROJECTILES;
+    sound.playFire();
     setStatus("Tiro disparado", true);
   }
 
@@ -552,7 +525,7 @@ async function main() {
       if (hole && !b.door) spawnRubble(rubbleForHole(hole));
       blast(p.pos, p.vel);
       if (doorFell) {
-        spawnDebris([0, 1.5 * trench.scale, trench.door.max[2] * trench.scale], p.vel);
+        emitter.emit([0, 1.5 * trench.scale, trench.door.max[2] * trench.scale], PARTICLES_PER_EXPLOSION);
         spawnRubble(rubbleForHole({ c: [0, 0, (trench.door.min[2] + trench.door.max[2]) / 2], d: [0, 0, -1], r: 1.4, scale: trench.scale }));
         setStatus("Portão derrubado!", true);
       } else if (b.door) {
@@ -566,32 +539,6 @@ async function main() {
     },
   };
 
-  // Destroços: mesmo passo de física dos projéteis (stepProjectile); no chão
-  // quicam uma vez, depois param, e somem aos poucos no fim da vida
-  function updateDebris(dt) {
-    for (let i = debris.length - 1; i >= 0; i--) {
-      const d = debris[i];
-      d.age += dt;
-      if (!d.resting) {
-        stepProjectile(d, dt);
-        d.rot[0] += d.spin[0] * dt;
-        d.rot[1] += d.spin[1] * dt;
-        const floorY = d.size * 0.25;
-        if (d.pos[1] <= floorY) {
-          d.pos[1] = floorY;
-          if (!d.bounced && d.vel[1] < -1.5) {
-            d.vel = [d.vel[0] * 0.45, -d.vel[1] * 0.3, d.vel[2] * 0.45];
-            d.spin = d.spin.map(v => v * 0.5);
-            d.bounced = true;
-          } else {
-            d.resting = true;
-          }
-        }
-      }
-      if (d.age > d.life) debris.splice(i, 1);
-    }
-  }
-
   // ---------- Inimigos: tiros das torres e dos tanques ----------
   function enemyFire(from, lead, spread) {
     const tankVel = bodyForward(state.yaw).map(c => c * state.vel);
@@ -604,6 +551,7 @@ async function main() {
     hp = Math.max(0, hp - 1 / mission.tankHits);
     stats.damage = 1 - hp;
     blast(pos, [0, 0, -1], metalTint);
+    sound.playImpact();
     toast(`⚠ IMPACTO! Saúde: ${Math.round(hp * 100)}%`);
     if (hp <= 0 && playerAlive) {
       playerAlive = false;
@@ -648,6 +596,8 @@ async function main() {
         enemyShots.splice(i, 1);
       } else if (s.pos[1] <= 0.08) {
         spawnExplosion([s.pos[0], 0.3, s.pos[2]]);
+        emitter.emit([s.pos[0], 0.3, s.pos[2]], 20);   // tiro inimigo no chão: menor
+        sound.playExplosion(boomStrength(s.pos) * 0.6);
         enemyShots.splice(i, 1);
       } else if (Math.hypot(s.pos[0] - state.x, s.pos[2] - state.z) > 150) {
         enemyShots.splice(i, 1);
@@ -661,7 +611,8 @@ async function main() {
     mission = MISSIONS[i];
     trench = createTrench({ scale: mission.castleScale, doorHP: mission.doorHP, sectorHits: mission.sectorHits });
     uploadHoles();
-    for (const arr of [projectiles, debris, rubble, explosions, enemyShots]) arr.length = 0;
+    for (const arr of [projectiles, rubble, explosions, enemyShots]) arr.length = 0;
+    emitter.clear();
     Object.assign(state, { x: 0, z: 1.5, yaw: 0, aimPitch: 0.35, vel: 0, turnVel: 0 });
     Object.assign(cam, { yaw: 0, pitch: 0.36 });
     ammoLeft = mission.ammo;
@@ -734,7 +685,7 @@ async function main() {
     if (mode !== "playing") return;
     if (mission.timeLimit) {
       timeLeft -= dt;
-      if (timeLeft <= 30 && !alertedLowTime) { alertedLowTime = true; beep(880, 0.15); setTimeout(() => beep(660, 0.2), 220); toast("30 SEGUNDOS!"); }
+      if (timeLeft <= 30 && !alertedLowTime) { alertedLowTime = true; sound.playTimeWarning(); toast("30 SEGUNDOS!"); }
       if (timeLeft <= 0) { lose("TEMPO ESGOTADO — DERROTA"); return; }
     }
     const castleDown = integ.left <= 0 && integ.gate <= 0 && integ.right <= 0;
@@ -784,7 +735,7 @@ async function main() {
     if (active) {
       updateProjectiles(projectiles, dt, isPlayerTargetSolid, projectileEvents);
       if (mode === "playing") updateEnemies(dt);
-      updateDebris(dt);
+      emitter.update(dt);
       for (let i = explosions.length - 1; i >= 0; i--) {
         explosions[i].age += dt;
         explosions[i].pos[1] += FIREBALL_RISE * dt;
@@ -797,7 +748,6 @@ async function main() {
       }
     }
     if (flashTimer > 0) flashTimer -= dt;
-    if (flash.t > 0) flash.t -= dt;
     const forward = bodyForward(state.yaw);
 
     // ---------- Câmera ----------
@@ -847,9 +797,14 @@ async function main() {
     const viewProj = mat4.multiply(projection, view);
     const writeObject = (d, model, tint, pattern, opacity, damage) =>
       device.queue.writeBuffer(d.uniformBuffer, 0, objectUniformData(viewProj, model, d.material, eye, tint, pattern, opacity, damage));
-    const flashI = flash.t > 0 ? FLASH_INTENSITY * (flash.t / FLASH_TIME) ** 2 : 0;
+    // PointLight de cada explosão: 2.0 → 0 em 2.5 s (linear) + clarão curto no início
+    const lights = explosions.slice(-MAX_POINT_LIGHTS).map(e => ({
+      pos: [e.origin[0], e.origin[1] + 0.5, e.origin[2]],
+      intensity: EXPLOSION_LIGHT * Math.max(0, 1 - e.age / EXPLOSION_DURATION)
+        + FLASH_INTENSITY * Math.max(0, 1 - e.age / FLASH_TIME) ** 2,
+    }));
     const glow = mode === "victory" && victoryFly ? victoryFly.t : 0;
-    device.queue.writeBuffer(sceneBuffer, 0, sceneUniformData(lightVP, flash.pos, flashI, cs, mission.ivyBoost, glow));
+    device.queue.writeBuffer(sceneBuffer, 0, sceneUniformData(lightVP, lights, cs, mission.ivyBoost, glow));
     sky.update(view, FOV_Y, canvas.width / canvas.height);
 
     if (mode !== "menu") {
@@ -881,10 +836,13 @@ async function main() {
       writeObject(d.barrel, m.barrel);
     });
     for (const r of rubble) writeObject(rubblePool[r.slot], r.model, r.tint, r.pattern);
-    for (const d of debris) {
-      writeObject(debrisPool[d.slot], mat4.multiply(mat4.translation(...d.pos),
-        mat4.multiply(mat4.rotationY(d.rot[0]), mat4.multiply(mat4.rotationX(d.rot[1]), scaleMatrix(d.size)))),
-        d.tint, d.pattern, 1 - Math.min(1, Math.max(0, (d.age - (d.life - DEBRIS_FADE)) / DEBRIS_FADE)));
+    const particles = emitter.alive();
+    for (const q of particles) {
+      const d = debrisPool[q.slot];
+      useMesh(d, particleMeshes[q.shape]);
+      writeObject(d, mat4.multiply(mat4.translation(...q.pos),
+        mat4.multiply(mat4.rotationAxis(q.axis, q.angle), scaleMatrix(q.size))),
+        q.tint, 0, ParticleEmitter.opacity(q));
     }
     for (const e of explosions) {
       const slot = explosionSlots[e.slot];
@@ -964,7 +922,7 @@ async function main() {
     for (const r of rubble) drawObject(pass, rubblePool[r.slot]);
     pass.setPipeline(debrisPipeline);
     pass.setBindGroup(1, sceneBindGroup);
-    for (const d of debris) drawObject(pass, debrisPool[d.slot]);
+    for (const q of particles) drawObject(pass, debrisPool[q.slot]);
     pass.setPipeline(trenchPipeline);
     pass.setBindGroup(1, sceneBindGroup);
     pass.setBindGroup(2, holesBindGroup);

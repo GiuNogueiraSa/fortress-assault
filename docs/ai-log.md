@@ -1013,3 +1013,103 @@ marcada com a tag `v-estavel-travessia`.
   mais tiros e mais espalhados no script. A lógica do jogo não mudou.
 - **Não feito:** música (o pedido dizia "se tiver assets"; há só o bipe
   sintetizado do alerta de tempo).
+
+## 24. Explosão 3D com partículas, luz dinâmica e som (Tone.js) — 05/10/2026 11:14
+
+**Prompt:** "Explosão realista 3D com som, partículas e dynamic lighting":
+- shader da explosão com cores branco → amarelo → laranja → vermelho →
+  preto, turbulência Perlin 3D e 2.5 s;
+- `ParticleEmitter` com pool: 60 partículas por explosão (cubos irregulares,
+  esferas, octaedros deformados), 5–15 u/s, gravidade, rotação de
+  360–720°/s, vida de 3–5 s;
+- uma PointLight por explosão: (1.0, 0.7, 0.2), 2.0 → 0 em 2.5 s, raio 20;
+- sons com Tone.js: explosão, tiro, impacto, alerta de 30 s e música
+  ambiente;
+- meta de 45–50 fps na missão 3.
+
+A versão anterior, estável, foi marcada com a tag `v-estavel-missoes`.
+
+**Feito:**
+- **`src/explosion.js`.**
+  - Duração de 2.5 s: o tempo do efeito do shader externo é desacelerado
+    (`etime()`), e a onda de choque continua rápida.
+  - Rampa de cor `fireRamp` (preto → vermelho → laranja → amarelo →
+    branco) com `smoothstep` entre as paradas, no lugar da posterização.
+  - O calor cai com a idade da explosão, e a fumaça vai de marrom a preto.
+  - Turbulência: ruído gradiente 3D (`NOISE_WGSL`, tipo Perlin) deforma as
+    coordenadas ao longo do tempo.
+  - O discard e o contorno por `fwidth` (entrada 23) foram mantidos.
+- **`src/explosion-particles.js` (novo).**
+  - Pool fixo: nada é alocado durante o jogo.
+  - 15 formas geradas uma vez:
+    - 6 cubos/lascas irregulares (`buildRock`);
+    - 3 esferas;
+    - 6 octaedros deformados.
+  - Velocidade de 5–15 em direções aleatórias da meia esfera de cima (para
+    não nascerem enterradas).
+  - Gravidade pelo mesmo `stepProjectile` dos tiros.
+  - Rotação em eixo aleatório (`mat4.rotationAxis`, Rodrigues, novo em
+    `math.js`).
+  - Um quique no chão e depois param.
+  - Alpha de 1 a 0 na vida de 3–5 s (pipeline com alpha-to-coverage).
+  - Cores azul / verde / vermelho / rosa (castelo, hera, flores); nos
+    acertos no tanque as lascas são metálicas.
+  - Substitui o sistema de lascas antigo.
+- **Luz dinâmica (`src/lighting.js`).**
+  - O uniform da cena ganhou um array de 4 luzes pontuais (posição e
+    intensidade).
+  - `shadeFull` soma a contribuição de cada uma em tudo que usa a
+    iluminação completa (castelo, chão, tanques, árvores, partículas).
+  - Intensidade: 2.0 × (1 − idade/2.5), mais um clarão de 0.12 s no início
+    (o antigo "flash").
+- **Som (`src/explosion-sound.js`, novo).**
+  - Explosão: ruído marrom com envelope → passa-baixa de 1 kHz, mais um
+    "boom" G2 com pitch descendente; o volume cai com a distância à
+    câmera.
+  - Tiro: dente-de-serra D5. Impacto no tanque: batida A2. Alerta dos
+    30 s: bip quadrado C6 duas vezes (substitui o bip WebAudio antigo).
+  - Música: PolySynth triângulo em loop (C – G – Am – Em, 60 BPM, −24 dB).
+  - Liga no primeiro clique/tecla (exigência do navegador); a tecla **N**
+    liga/desliga a música.
+  - Crédito do Tone.js (MIT) no README e na tela de créditos.
+
+**Diferenças em relação ao pedido (adaptações ao projeto):**
+- O exemplo usava three.js (`THREE.PointLight`, classe `Game`). O projeto
+  é WebGPU puro, então a luz pontual foi feita no shader WGSL, sem sombra
+  (como pedido para desempenho).
+- `import * as Tone from` cdnjs não funciona: o arquivo é UMD, não módulo
+  ES. Tone.js é carregado por `<script>` de uma cópia local
+  (`assets/vendor/Tone.js`), o que também garante funcionar sem internet
+  na apresentação.
+- O exemplo criava um sintetizador novo a cada som. Os instrumentos são
+  criados uma vez e reaproveitados, para não acumular nós de áudio.
+  Explosões simultâneas (< 60 ms) tocam um som só.
+- Atenuação `I / (1 + d²)` com d medido em unidades de 3 m. Com d em
+  metros a luz sumia a 2–3 m e não se via na parede. Há um corte suave
+  entre 14 e 20 (raio 20).
+- As partículas usam a meia esfera de cima, não "todas as direções": as de
+  baixo nasceriam dentro do chão.
+
+**Arquivos:** `src/explosion.js`, `src/explosion-particles.js` (novo),
+`src/explosion-sound.js` (novo), `assets/vendor/Tone.js` (novo),
+`src/lighting.js`, `src/math.js`, `src/main.js`, `index.html`,
+`README.md`, `docs/ai-log.md`.
+
+**Testes (Playwright, Chrome com GPU):**
+- **Missão 1:** tiros no portão → explosão com fogo, partículas e luz
+  (capturas de tela); o portão cai após 3 acertos. `window.Tone` carregado
+  e o contexto de áudio em "running" após o clique. Sem erros de shader
+  nem no console (só o 404 do favicon).
+- **Missão 3 em combate**, tiro a cada 0.3 s com as torres e os tanques
+  atirando de volta: **53 fps** (meta 45–50; antes desta entrada eram 54).
+  Sem erros.
+- O som em si não dá para ouvir no teste automatizado: foi verificado que
+  inicializa e toca sem exceções.
+
+**Problemas:**
+- A troca da assinatura de `sceneUniformData` (agora recebe uma lista de
+  luzes) quebrava `main.js` até a integração, que foi feita junto.
+- O script de regressão completo (`missions_check.py`) falhou ao imprimir
+  "∞" no console do Windows (cp1252). É um problema do script, não do
+  jogo. A nova execução foi interrompida pelo usuário, e a verificação
+  ficou com o teste de fumaça e o de desempenho da missão 3.

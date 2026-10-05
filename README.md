@@ -17,8 +17,11 @@ para dentro do pátio iluminado.
 
 O tanque (modelo glTF, amarelo com pintas de onça) tem inércia e câmera 360°.
 O castelo pode ser destruído em qualquer parte, com buracos recortados no
-shader. A cena tem sombras, céu com sol e nuvens, e explosões com fogo, onda
-de choque, lascas, clarão e tremor.
+shader. A cena tem sombras, céu com sol e nuvens, e explosões de 2.5 s com
+fogo turbulento (branco → amarelo → laranja → vermelho → fumaça preta), onda
+de choque, 60 partículas 3D, uma luz dinâmica por explosão e tremor. O som é
+sintetizado em tempo real com Tone.js: explosões, tiro, impacto, alerta de
+tempo e música ambiente.
 
 ## Como rodar localmente
 
@@ -48,6 +51,7 @@ suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 | Atirar (a linha mostra a trajetória) | Espaço |
 | Câmera 360° ao redor do tanque | Mouse (clique no jogo para travar) |
 | Menu / pausa | M (ou Esc com o mouse solto) |
+| Liga/desliga a música | N |
 | Soltar o mouse | Esc |
 
 ## Estrutura
@@ -70,6 +74,9 @@ src/aimLine.js    linha de mira (pipeline line-strip)
 src/sky.js        céu em gradiente com sol e nuvens (triângulo em tela cheia)
 src/scenery.js    árvores de fundo
 src/explosion.js  shader de explosão (WGSL), onda de choque e ruído compartilhado
+src/explosion-particles.js  ParticleEmitter (pool) das partículas 3D da explosão
+src/explosion-sound.js      sons e música com Tone.js
+assets/vendor/Tone.js       Tone.js 14.8.49 (MIT), cópia local
 assets/models/    modelo 3D do tanque (tank.glb)
 ```
 
@@ -91,3 +98,7 @@ por [Willy Decarpentrie](https://sketchfab.com/skudgee), licença
 [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Alterações: cores do
 material substituídas por código (a textura original não é usada), escala e
 orientação ajustadas, cano separado do resto para girar com a mira.
+
+Som: [Tone.js](https://tonejs.github.io/) v14.8.49, licença MIT, cópia local
+em `assets/vendor/Tone.js`. Todos os sons são sintetizados (sem arquivos de
+áudio).
