@@ -97,10 +97,10 @@ O ponto mais caro é o shader da explosão perto da câmera. Detalhes no
 | Ação | Tecla |
 |---|---|
 | Andar para frente / ré (com inércia) | W / S |
-| Girar o tanque | A / D |
-| Elevação do cano | ↑ / ↓ |
+| Girar o corpo (a torre continua mirando) | A / D |
+| Mirar: girar a torre e subir/descer o cano | Mouse (clique no jogo para travar) |
+| Girar a torre / ajuste fino do cano (sem mouse) | Q / E · ↑ / ↓ |
 | Atirar (a linha mostra a trajetória) | Espaço |
-| Câmera 360° ao redor do tanque | Mouse (clique no jogo para travar) |
 | Menu / pausa | M (ou Esc com o mouse solto) |
 | Liga/desliga a música | N |
 | Soltar o mouse | Esc |

@@ -59,8 +59,8 @@ document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   crosshairEl.style.display = locked ? "block" : "none";
   lockHintEl.textContent = locked
-    ? "Câmera ativa — Esc solta o mouse"
-    : "Clique para travar o mouse (câmera 360°)";
+    ? "Mira no mouse — Esc solta"
+    : "Clique para mirar com o mouse";
 });
 
 function setStatus(msg, ok = true) {
@@ -427,11 +427,13 @@ async function main() {
   // ---------- Estado do jogador ----------
   const state = {
     x: 0, z: 1.5,
-    yaw: 0,              // direção do corpo (A/D); torre e cano seguem junto
-    aimPitch: 0.35,      // elevação do cano (setas ↑/↓)
+    yaw: 0,              // direção do corpo (A/D)
+    aimYaw: 0,           // para onde o jogador mira (mouse X / Q-E), no mundo
+    turretYaw: 0,        // para onde a torre aponta agora (vai girando até aimYaw)
+    aimPitch: 0.35,      // elevação do cano (mouse Y; setas ↑/↓ para ajuste fino)
     vel: 0, turnVel: 0,  // inércia (moveTankSmooth)
   };
-  // câmera em órbita ao redor do tanque (mouse): ângulo relativo ao corpo e elevação
+  // câmera atrás da mira: só a inclinação fica aqui (a direção é state.aimYaw)
   const cam = { yaw: 0, pitch: 0.36 };
   const MOUSE_CAM_SENS = 0.003;
   const PITCH_SPEED = 0.9;          // rad/s com as setas
@@ -441,11 +443,19 @@ async function main() {
   const PITCH_MAX = 1.35;           // ~77 graus
   const CAM_DISTANCE = 6.5;
 
+  // Mira no mouse (estilo World of Tanks): X gira a mira (a câmera fica atrás
+  // dela e a torre gira até lá), Y sobe/desce o cano. O corpo (A/D) gira por
+  // baixo sem tirar a mira do lugar.
+  const MOUSE_PITCH_SENS = 0.0022;
+  const TURRET_SPEED = 2.0;         // rad/s (~115°/s): a torre não "teleporta"
+  const AIM_KEY_SPEED = 1.3;        // rad/s com Q/E (sem mouse travado)
   document.addEventListener("mousemove", (e) => {
     if (document.pointerLockElement !== canvas || mode !== "playing") return;
-    cam.yaw -= e.movementX * MOUSE_CAM_SENS;
-    cam.pitch = Math.max(-0.05, Math.min(1.35, cam.pitch + e.movementY * MOUSE_CAM_SENS));
+    state.aimYaw -= e.movementX * MOUSE_CAM_SENS;
+    state.aimPitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, state.aimPitch - e.movementY * MOUSE_PITCH_SENS));
   });
+  // ângulo em (-π, π] para girar a torre pelo caminho mais curto
+  const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   // ---------- Missão em andamento ----------
   let mode = "menu";            // "menu" | "playing" | "paused" | "victory" | "defeat"
@@ -722,7 +732,7 @@ async function main() {
     uploadHoles();
     for (const arr of [projectiles, rubble, explosions, enemyShots, craters, chunks]) arr.length = 0;
     emitter.clear();
-    Object.assign(state, { x: 0, z: 1.5, yaw: 0, aimPitch: 0.35, vel: 0, turnVel: 0 });
+    Object.assign(state, { x: 0, z: 1.5, yaw: 0, aimYaw: 0, turretYaw: 0, aimPitch: 0.35, vel: 0, turnVel: 0 });
     Object.assign(cam, { yaw: 0, pitch: 0.36 });
     ammoLeft = mission.ammo;
     hp = 1;
@@ -898,7 +908,12 @@ async function main() {
     if (mode === "playing" && playerAlive) {
       if (keys.has("arrowup")) state.aimPitch = Math.min(PITCH_MAX, state.aimPitch + PITCH_SPEED * dt);
       if (keys.has("arrowdown")) state.aimPitch = Math.max(PITCH_MIN, state.aimPitch - PITCH_SPEED * dt);
+      if (keys.has("q")) state.aimYaw += AIM_KEY_SPEED * dt;
+      if (keys.has("e")) state.aimYaw -= AIM_KEY_SPEED * dt;
       moveTankSmooth(state, keys, dt, isPlayerBlocked);
+      // torre gira até a mira, com velocidade limitada
+      const diff = wrapAngle(state.aimYaw - state.turretYaw);
+      state.turretYaw += Math.sign(diff) * Math.min(Math.abs(diff), TURRET_SPEED * dt);
     } else {
       state.vel = 0; state.turnVel = 0;
     }
@@ -941,7 +956,7 @@ async function main() {
       eye = victoryFly.from.eye.map((v, i) => v + (victoryFly.to[i] - v) * k);
       camLookAt = victoryFly.from.look.map((v, i) => v + (victoryFly.look[i] - v) * k);
     } else {
-      // jogo: órbita ao redor do tanque (mouse), com tremor no impacto
+      // jogo: câmera atrás da mira (mouse), com tremor no impacto
       let shake = [0, 0, 0];
       if (shakeTime > 0) {
         const k = shakeTime / SHAKE_DURATION;
@@ -951,7 +966,8 @@ async function main() {
         shake = [right[0] * sx, sy, right[2] * sx];
         shakeTime -= dt;
       }
-      const camDir = bodyForward(state.yaw + cam.yaw);    // para onde a câmera "olha" no plano
+      const camDir = bodyForward(state.aimYaw);    // câmera atrás da direção da mira
+      cam.pitch = Math.max(0.12, Math.min(0.5, 0.44 - 0.2 * state.aimPitch));   // cano alto → câmera mais baixa (vê longe)
       const cp = Math.cos(cam.pitch), spch = Math.sin(cam.pitch);
       // se uma parede fica entre o tanque e a câmera, a câmera chega mais perto
       let camDist = CAM_DISTANCE;

@@ -28,7 +28,7 @@ export function buildChassis() {
   verts = verts.concat(buildBox(1.3, 0.4, 1.8, [0, 0.42, 0], [0.82, 0.42, 0.10]));
   return new Float32Array(verts);
 }
-// Torre (gira em yaw junto com o chassi — sem rotação própria)
+// Torre: gira em yaw por conta própria (mira no mouse), em cima do chassi
 export function buildTurretDome() {
   return new Float32Array(buildBox(0.75, 0.4, 0.75, [0,0,0], [0.65, 0.32, 0.07]));
 }
@@ -107,10 +107,11 @@ function classify(b) {
   return "hull";
 }
 
-// Monta as malhas do jogo a partir do glTF: corpo (casco + torre + detalhes,
-// no referencial do chassi) e cano (relativo ao pivô, gira com a elevação).
+// Monta as malhas do jogo a partir do glTF: corpo (casco + detalhes, no
+// referencial do chassi), torre (relativa ao centro dela, gira em yaw) e cano
+// (relativo ao pivô, gira com a elevação, preso à torre).
 export function buildModelTank(gltf) {
-  const body = [], barrel = [];
+  const body = [], turretTris = [], barrel = [];
   const pivot = toGame(MODEL_BARREL_PIVOT);
   const stats = { hull: 0, turret: 0, detail: 0, barrel: 0 };
   for (const prim of gltf.primitives) {
@@ -120,7 +121,7 @@ export function buildModelTank(gltf) {
       const part = classify(bbox.get(find(idx[t])));
       stats[part]++;
       const color = part === "hull" || part === "turret" ? TANK_BODY_COLOR : TANK_DETAIL_COLOR;
-      const out = part === "barrel" ? barrel : body;
+      const out = part === "barrel" ? barrel : part === "turret" ? turretTris : body;
       const tri = [idx[t], idx[t+1], idx[t+2]];
       let flat = null;
       if (!N) { // sem normais no arquivo: normal da face
@@ -138,13 +139,21 @@ export function buildModelTank(gltf) {
     }
   }
   if (stats.barrel === 0) throw new Error("Cano não encontrado no modelo (regiões de classificação não batem)");
+  // eixo de giro da torre: centro (x, z) da caixa que envolve os triângulos dela
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < turretTris.length; i += 9) {
+    x0 = Math.min(x0, turretTris[i]); x1 = Math.max(x1, turretTris[i]);
+    z0 = Math.min(z0, turretTris[i + 2]); z1 = Math.max(z1, turretTris[i + 2]);
+  }
+  const tp = turretTris.length ? [(x0 + x1) / 2, 0, (z0 + z1) / 2] : [0, 0, 0];
+  for (let i = 0; i < turretTris.length; i += 9) { turretTris[i] -= tp[0]; turretTris[i + 2] -= tp[2]; }
   return {
     chassis: new Float32Array(body),
-    turret: null,   // torre faz parte do corpo: gira junto com o chassi
+    turret: new Float32Array(turretTris),
     barrel: new Float32Array(barrel),
     rig: {
-      turretPivot: [0, 0, 0],
-      barrelMount: pivot,
+      turretPivot: tp,                                         // no chassi
+      barrelMount: [pivot[0] - tp[0], pivot[1], pivot[2] - tp[2]],   // na torre
       barrelLength: (MODEL_MUZZLE_Z - MODEL_BARREL_PIVOT[2]) * MODEL_SCALE,
     },
     stats,
@@ -156,14 +165,18 @@ let rig = BOX_RIG;
 export function setTankRig(r) { rig = r; }
 export function barrelLength() { return rig.barrelLength; }
 
-// Matrizes de modelo chassi -> torre -> cano para o estado atual (posição, yaw, pitch).
-// Usada tanto no desenho de cada quadro quanto no cálculo da boca do cano ao atirar.
+// Matrizes de modelo chassi -> torre -> cano para o estado atual (posição,
+// yaw do corpo, yaw da torre no mundo, pitch). Usada no desenho de cada quadro,
+// no disparo e na linha de mira. Sem turretYaw (tanques inimigos), a torre
+// olha para a frente do corpo.
 export function tankModelMatrices(state) {
   const chassis = mat4.multiply(
     mat4.translation(state.x, 0, state.z),
     mat4.rotationY(state.yaw)
   );
-  const turret = mat4.multiply(chassis, mat4.translation(...rig.turretPivot));
+  const turretRel = (state.turretYaw ?? state.yaw) - state.yaw;
+  const turret = mat4.multiply(chassis,
+    mat4.multiply(mat4.translation(...rig.turretPivot), mat4.rotationY(turretRel)));
   const barrel = mat4.multiply(
     turret,
     mat4.multiply(mat4.translation(...rig.barrelMount), mat4.rotationX(state.aimPitch))

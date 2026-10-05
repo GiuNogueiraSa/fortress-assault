@@ -1690,3 +1690,66 @@ entender.
   maior no dia da apresentação.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 36. Mira no mouse com torre independente (opção B) — 05/10/2026 17:37
+
+**Prompt:** "opção b": a torre gira para onde o mouse aponta, independente
+do corpo (estilo World of Tanks).
+
+A versão anterior, estável, foi marcada com a tag `v-estavel-testes`.
+
+**Feito:**
+- **`src/tank.js`:**
+  - **Torre separada do corpo:** o loader do glTF já classificava as peças
+    (632 triângulos de "torre", acima de y = 140 no modelo), mas juntava
+    tudo no corpo. Agora a torre vira uma malha própria, centrada no meio
+    da caixa que a envolve.
+  - **Cano:** o pivô do cano passou a ser relativo à torre.
+  - **`tankModelMatrices`:** aplica a rotação da torre em relação ao corpo
+    (`turretYaw − yaw`). Sem `turretYaw`, como nos tanques inimigos, a
+    torre olha para a frente.
+- **`src/main.js`:**
+  - **Estado:** `aimYaw` (para onde o jogador mira, no mundo) e `turretYaw`
+    (para onde a torre aponta).
+  - **Mouse travado:** X gira `aimYaw` e Y muda a elevação do cano.
+  - **Torre:** gira até `aimYaw` a 2 rad/s (~115°/s), pelo caminho mais
+    curto.
+  - **Câmera:** fica atrás da mira, e não mais do corpo. A inclinação
+    acompanha um pouco o cano (cano alto → câmera mais baixa, para ver
+    longe).
+  - **Teclado:** Q/E giram a mira (para quem não trava o mouse ou usa
+    touchpad), e as setas ↑/↓ continuam como ajuste fino do cano.
+  - O tiro e a linha de mira já usavam `tankModelMatrices`, então seguem
+    a torre sem mudança.
+- **`src/hud.js`:** o minimapa ganhou um traço mostrando para onde a torre
+  aponta.
+- **Textos:** dica do HUD, briefing, tutorial, README, relatório e slides.
+
+**Arquivos:** `src/tank.js`, `src/main.js`, `src/hud.js`, `index.html`,
+`README.md`, `docs/DEVELOPMENT_REPORT.md`, `src/presentation.html`,
+`docs/ai-log.md`.
+
+**Testes (Playwright, Chrome com GPU, relógio virtual):**
+- **Torre:**
+  - mira 90° à esquerda → a torre gira 0,48 rad em 0,25 s (limite de
+    2 rad/s) e para exatamente em 1,571;
+  - o tiro sai na direção da torre: (−1, 0), como esperado.
+- **Corpo:** girar com D → o corpo foi a −1,44 e a mira e a torre ficaram
+  em 1,571.
+- **Q/E:** E por 0,5 s → mira −0,62; Q volta.
+- **Mouse de verdade com o ponteiro travado:** 100 px para a esquerda →
+  mira +0,30; 50 px para cima → cano 0,35 → 0,46.
+- **Capturas:** com a torre virada e o corpo girado, nenhuma peça do modelo
+  ficou para trás.
+- **Regressão** (scripts ajustados para também definir a direção da mira):
+  - fluxo completo: vitória na M1, ranking, M2 automática, derrota,
+    Escolher, pausa;
+  - vitórias na M2 e na M3, com torres desabando e a tela "VOCÊ É O
+    CONQUISTADOR!".
+  - Sem erros.
+- **Textos novos** do briefing e da barra de dicas cabem na tela (uma
+  linha).
+
+**Problemas:** nenhum no jogo. Os scripts de teste posicionavam o tanque só
+com `yaw`, e a torre ficaria apontando para a mira antiga → passaram a
+definir `aimYaw` / `turretYaw` também.

@@ -81,4 +81,9 @@ export function drawMinimap({ tank, enemies, castle }) {
   g.lineTo(x - fx * 7 - fz * 7, z - fz * 7 + fx * 7);
   g.lineTo(x - fx * 7 + fz * 7, z - fz * 7 - fx * 7);
   g.closePath(); g.fill();
+  // cano: para onde a torre aponta (gira separada do corpo)
+  if (tank.turretYaw !== undefined) {
+    g.strokeStyle = "#1b1206"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(x, z); g.lineTo(x - Math.sin(tank.turretYaw) * 16, z - Math.cos(tank.turretYaw) * 16); g.stroke();
+  }
 }

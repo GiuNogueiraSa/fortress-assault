@@ -283,8 +283,17 @@ Os itens 7 a 10 mudam o visual de propósito, depois dessa validação.
     0,42 e 0,85, em 2 alturas): o tanque só para quando 3 ou mais estão
     dentro da pedra;
   - mundo de ±200 até o horizonte.
-- **Tiro:** balístico (velocidade 11, gravidade −9,8). A linha de mira
-  mostra a trajetória prevista até o 1º obstáculo.
+- **Mira no mouse (estilo World of Tanks):**
+  - o mouse X gira a direção da mira (`aimYaw`, no mundo), e a câmera fica
+    atrás dela;
+  - a torre gira até a mira a 2 rad/s, sem "teleportar";
+  - o mouse Y sobe/desce o cano;
+  - A/D giram só o corpo, e a torre continua mirando;
+  - Q/E e as setas fazem o mesmo pelo teclado.
+  - A torre do modelo glTF foi separada do corpo pelas peças que o loader já
+    classificava como "torre" e gira em volta do centro delas.
+- **Tiro:** balístico (velocidade 11, gravidade −9,8), na direção da torre.
+  A linha de mira mostra a trajetória prevista até o 1º obstáculo.
 - **Inimigos:** usam a solução de trajetória baixa para acertar o alvo com
   velocidade fixa (15).
 
