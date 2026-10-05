@@ -1804,3 +1804,30 @@ de entradas lê 36 do log.
   Settings → Pages → `main` / `(root)`.
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 39. GitHub Pages não publicou — falha do GitHub Actions — 05/10/2026 18:09
+
+**Prompt:** captura de tela das configurações do Pages ("Deploy from a
+branch", `main` / `(root)`): "não deu certo, o Pages não apareceu o link".
+
+**Diagnóstico:**
+- **Configuração:** estava certa. A tela dizia "Your GitHub Pages site is
+  currently being built from the main branch".
+- **Execução "pages build and deployment"** (pela API pública do GitHub):
+  - o job `build` deu certo (checkout + upload do artefato do site);
+  - os jobs `deploy` e `report-build-status` ficaram 15 min na fila e foram
+    cancelados com "The job was not acquired by Runner of type hosted even
+    after multiple attempts".
+- **githubstatus.com:** "Partial System Outage", com Actions em
+  **major outage** ("Incident with Actions — investigating"). O Pages
+  publica por meio do Actions, então a causa é a instabilidade do GitHub,
+  não o projeto nem a configuração.
+
+**Feito:** este registro foi enviado, e o push dispara uma nova tentativa
+de publicação, que roda quando o Actions voltar. Também ficou uma
+verificação automática do endereço.
+
+**Para a apresentação:** não depender do Pages. O jogo roda localmente com
+`python serve.py` (http://localhost:8000).
+
+**Arquivos:** `docs/ai-log.md`.
