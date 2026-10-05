@@ -10,6 +10,11 @@ PORT = 8000
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+    # .md como texto: sem isso o Python manda application/octet-stream e o
+    # navegador baixa o arquivo em vez de mostrar (links dos slides)
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
+                      ".md": "text/plain; charset=utf-8"}
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()

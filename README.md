@@ -41,6 +41,12 @@ Depois abra <http://localhost:8000> num **Chrome ou Edge atualizado** (com
 suporte a WebGPU). Se o WebGPU estiver desativado, ative em
 `chrome://flags/#enable-unsafe-webgpu`.
 
+## Apresentação
+
+Slides interativos com os 6 critérios de avaliação: com o servidor rodando,
+abra **http://localhost:8000/src/presentation.html**. Use ← / → ou clique no
+slide para navegar, e Ctrl+P para gerar o PDF (um slide por página).
+
 ## Controles
 
 | Ação | Tecla |

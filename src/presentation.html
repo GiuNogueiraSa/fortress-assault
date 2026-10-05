@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fortress Assault — Apresentação</title>
+<!-- Slides da apresentação (abrir pelo servidor: http://localhost:8000/src/presentation.html).
+     Navegação: ← / → (ou clique no slide; lado esquerdo volta), Home / End.
+     Ctrl+P imprime um slide por página (PDF). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #14152a;
+    --panel: #1f2140;
+    --panel-2: #272a52;
+    --line: #34386a;
+    --text: #eceefb;
+    --muted: #a3a8cf;
+    --blue: #4f7dff;
+    --blue-soft: #8fb0ff;
+    --yellow: #ffd23f;
+    --orange: #ff8a1f;
+    --red: #ff5a4f;
+    --green: #4fd18b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
+    overflow: hidden;
+  }
+  a { color: var(--blue-soft); }
+
+  /* ---------- palco 16:9 ---------- */
+  .deck { position: fixed; inset: 0 0 64px 0; display: grid; place-items: center; }
+  .slide {
+    position: absolute;
+    width: min(96vw, calc((100vh - 84px) * 16 / 9));
+    aspect-ratio: 16 / 9;
+    padding: 3.2% 4.2%;
+    background: radial-gradient(120% 90% at 100% 0%, #262a5c 0%, var(--bg) 60%);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    display: flex; flex-direction: column;
+    opacity: 0; transform: translateX(40px);
+    transition: opacity .45s ease, transform .45s ease;
+    pointer-events: none;
+    overflow: hidden;
+    font-size: clamp(11px, 1.45vw, 21px);
+  }
+  .slide.active { opacity: 1; transform: none; pointer-events: auto; }
+  .slide.before { transform: translateX(-40px); }
+
+  .kicker { color: var(--yellow); font-weight: 600; letter-spacing: .12em; text-transform: uppercase; font-size: .72em; }
+  h1 { font-size: 3.6em; margin: .1em 0; font-weight: 800; letter-spacing: .02em; }
+  h2 { font-size: 1.9em; margin: .15em 0 .1em; font-weight: 800; }
+  .sub { color: var(--muted); font-size: 1em; margin: 0 0 .9em; }
+  .pts { display: inline-block; margin-left: .5em; padding: .12em .55em; border-radius: 99px; background: var(--orange); color: #1b1200; font-size: .5em; vertical-align: middle; font-weight: 800; }
+  .body { flex: 1; min-height: 0; display: grid; gap: 1.1em; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-32 { grid-template-columns: 1.35fr 1fr; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .8em 1em; min-height: 0; }
+  .card h3 { margin: 0 0 .35em; font-size: .95em; color: var(--blue-soft); }
+  ul { margin: .2em 0; padding-left: 1.1em; }
+  li { margin: .18em 0; line-height: 1.32; }
+  .tiny { font-size: .72em; color: var(--muted); }
+  .small { font-size: .82em; }
+  code { font-family: Consolas, "Cascadia Code", monospace; font-size: .9em; background: var(--panel-2); padding: .05em .3em; border-radius: 4px; color: var(--yellow); }
+  img.shot { width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  .ok { color: var(--green); font-weight: 600; }
+  .bad { color: var(--red); font-weight: 600; }
+  .warn { color: var(--yellow); font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .8em; }
+  th, td { text-align: left; padding: .42em .6em; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .9em; }
+  tr:last-child td { border-bottom: 0; }
+  td.n { color: var(--yellow); font-weight: 800; white-space: nowrap; }
+  table.log { font-size: .72em; }
+  table.log td { padding: .32em .55em; }
+  table.log td:last-child { white-space: nowrap; }
+  table.score { font-size: .95em; }
+  table.score td { padding: .6em .7em; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: .4em;
+    padding: .45em .95em; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); text-decoration: none;
+    font: inherit; font-size: .82em; font-weight: 600; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn.primary { background: var(--yellow); color: #1b1600; border-color: var(--yellow); }
+
+  .stats { display: flex; gap: 1em; }
+  .stat { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .6em .9em; }
+  .stat b { display: block; font-size: 2em; color: var(--yellow); line-height: 1.1; }
+  .stat span { color: var(--muted); font-size: .8em; }
+
+  /* casos de erro → correção */
+  .cases { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7em; }
+  .case { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .7em .75em; font-size: .72em; display: flex; flex-direction: column; gap: .35em; }
+  .case .tag { color: var(--yellow); font-weight: 800; font-size: .9em; }
+  .case h4 { margin: 0; font-size: 1.12em; }
+  .case p { margin: 0; line-height: 1.32; }
+  .case .lbl { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .78em; letter-spacing: .06em; display: block; }
+  .case .fix { color: var(--green); }
+
+  /* capa */
+  .cover {
+    background: linear-gradient(90deg, rgba(14,15,34,.92) 0%, rgba(14,15,34,.55) 55%, rgba(14,15,34,.15) 100%),
+                url("../assets/slides/menu-castelo.jpg") center / cover;
+    justify-content: center;
+  }
+  .cover h1 { font-size: 4.6em; color: var(--yellow); text-shadow: 0 4px 0 #8a4b00, 0 10px 30px rgba(0,0,0,.6); }
+  .cover .sub { font-size: 1.35em; color: var(--text); }
+  .cover .meta { margin-top: 1.6em; color: var(--muted); line-height: 1.6; }
+  .cover .meta b { color: var(--text); }
+
+  .score td:nth-child(2) { color: var(--yellow); font-weight: 800; white-space: nowrap; }
+  .score tr.total td { font-weight: 800; font-size: 1.1em; border-top: 2px solid var(--yellow); }
+
+  /* barra de navegação */
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 64px;
+    display: flex; align-items: center; gap: 10px; padding: 0 18px;
+    background: rgba(10,11,26,.9); border-top: 1px solid var(--line);
+    font-size: 15px;
+  }
+  nav .count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .progress { position: fixed; left: 0; bottom: 64px; height: 3px; background: linear-gradient(90deg, var(--blue), var(--yellow), var(--orange)); transition: width .4s ease; }
+
+  @media (max-width: 760px) {
+    .slide {
+      width: calc(100vw - 16px); height: calc(100vh - 80px); aspect-ratio: auto;
+      overflow-y: auto; padding: 18px 16px; font-size: 14px;
+    }
+    h1 { font-size: 2.4em; }
+    .cover h1 { font-size: 2.6em; }
+    .body, .cols-2, .cols-32, .cases { grid-template-columns: 1fr !important; }
+    .stats { flex-direction: column; }
+    table.log td:last-child { white-space: normal; }
+    td code { word-break: break-all; }
+    table.score td, table.score th { padding: .5em .35em; }
+    nav { gap: 6px; padding: 0 8px; font-size: 13px; }
+    nav .btn { padding: .4em .6em; }
+    nav .btn-label { display: none; }
+  }
+
+  /* impressão: um slide por página, sem navegação nem animação */
+  @media print {
+    @page { size: 297mm 167mm; margin: 0; }
+    html, body { overflow: visible; height: auto; background: #fff; }
+    nav, .progress { display: none; }
+    .deck { position: static; display: block; }
+    .slide {
+      position: relative; opacity: 1; transform: none; transition: none;
+      width: 297mm; height: 167mm; aspect-ratio: auto; border-radius: 0; border: 0; box-shadow: none;
+      page-break-after: always; break-after: page; font-size: 13pt;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 1. Capa -->
+  <section class="slide cover">
+    <div class="kicker">Trabalho de Computação Gráfica</div>
+    <h1>FORTRESS ASSAULT</h1>
+    <p class="sub">Computação Gráfica — FECAP</p>
+    <div class="meta">
+      <!-- EDITAR: nomes do grupo -->
+      <div><b>Grupo:</b> Giulia e grupo</div>
+      <div><b>Data:</b> 05/10/2026</div>
+      <div class="tiny">Fundo: captura do próprio jogo (castelo ao pôr do sol, menu)</div>
+    </div>
+  </section>
+
+  <!-- 2. Objetivo -->
+  <section class="slide">
+    <div class="kicker">Visão geral</div>
+    <h2>Objetivo do projeto</h2>
+    <p class="sub">Jogo 3D de tanque renderizado com WebGPU: destruir a fortaleza a tiros de canhão.</p>
+    <div class="body cols-32">
+      <img class="shot" src="../assets/slides/missao1-explosao.jpg" alt="Tanque atirando no portão do castelo, com explosão">
+      <div class="small" style="display:grid; gap:.7em; align-content:start">
+        <div class="card">
+          <h3>Tecnologias</h3>
+          <ul>
+            <li><b>WebGPU + WGSL</b>: toda a renderização (iluminação, sombras, castelo destrutível, explosões)</li>
+            <li><b>Tone.js</b>: som sintetizado em tempo real</li>
+            <li>JavaScript (módulos ES), sem engine nem three.js</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>O que foi entregue</h3>
+          <ul>
+            <li>3 missões progressivas, com menu, HUD e minimapa</li>
+            <li>Castelo destrutível em qualquer ponto (buracos recortados no shader)</li>
+            <li>Explosões 3D: fogo (shader externo), 60 partículas, luz dinâmica</li>
+            <li>Som: explosão, tiro, impacto, alerta e música</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Critério 1 -->
+  <section class="slide">
+    <div class="kicker">Critério 1</div>
+    <h2>Registro de uso de IAs <span class="pts">2,5 pts</span></h2>
+    <p class="sub">Prompts, respostas e etapas utilizadas: cada prompt vira uma entrada em <code>docs/ai-log.md</code></p>
+    <div class="body" style="grid-template-rows:auto 1fr auto">
+      <div class="stats">
+        <div class="stat"><b id="log-count">26</b><span>entradas no ai-log.md (cronológicas)</span></div>
+        <div class="stat"><b>26</b><span>commits com mensagens descritivas</span></div>
+        <div class="stat"><b>3</b><span>IAs: Claude (principal), Gemini e ChatGPT (comparação)</span></div>
+      </div>
+      <div class="card" style="padding:.2em .6em">
+        <table class="log">
+          <tr><th>#</th><th>Data</th><th>Prompt (resumo)</th><th>Resultado</th><th>Arquivos</th></tr>
+          <tr><td class="n">1</td><td>28/09</td><td>Organizar o protótipo: módulos, git, README, CLAUDE.md</td><td>Refatorado sem mudar o jogo (4 capturas idênticas pixel a pixel)</td><td><code>src/*.js</code></td></tr>
+          <tr><td class="n">3</td><td>28/09</td><td>Portar o shader "Cartoon explosion" (Shadertoy) para WGSL</td><td>Shader WGSL + billboard 3D; ≤ 0,03% de diferença do GLSL</td><td><code>explosion.js</code></td></tr>
+          <tr><td class="n">17</td><td>04/10</td><td>Comparar Claude × Gemini × ChatGPT na conversão do shader</td><td>Três códigos compilados e testados</td><td><code>analise-ias.md</code></td></tr>
+          <tr><td class="n">23</td><td>04/10</td><td>Menu e 3 missões com progressão</td><td>Missões, HUD, inimigos; 22 → 54 fps</td><td><code>missions.js</code></td></tr>
+          <tr><td class="n">24</td><td>05/10</td><td>Explosão 3D com partículas, luz dinâmica e som</td><td>ParticleEmitter, luzes no shader, Tone.js</td><td><code>explosion-*.js</code></td></tr>
+          <tr><td class="n">25</td><td>05/10</td><td>Cores realistas e turbulência no shader</td><td>5 fases de cor, fBm Perlin 3D</td><td><code>explosion.js</code></td></tr>
+        </table>
+      </div>
+      <div style="display:flex; gap:.7em; align-items:center">
+        <a class="btn primary" href="../docs/ai-log.md" target="_blank" rel="noopener">Ver ai-log.md completo ↗</a>
+        <span class="tiny">Cada entrada: data/hora, prompt resumido, o que foi feito, arquivos, problemas e como foram resolvidos.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Critério 2 -->
+  <section class="slide">
+    <div class="kicker">Critério 2</div>
+    <h2>Evidências de erros e correções <span class="pts">2,5 pts</span></h2>
+    <p class="sub">Problemas encontrados e soluções, todos registrados no ai-log e nas mensagens de commit</p>
+    <div class="body" style="grid-template-rows:1fr auto">
+      <div class="cases">
+        <div class="case">
+          <span class="tag">Entrada 3</span>
+          <h4>Bugs no shader original</h4>
+          <p><span class="lbl">Problema</span>O índice da paleta podia sair do array; divisão por zero em t = 0.</p>
+          <p class="fix"><span class="lbl">Solução</span><code>clamp</code> no índice e <code>repeat ≥ 0.001</code>.</p>
+          <p><span class="lbl">Impacto</span>Sem leitura fora do array nem NaN no 1º quadro.</p>
+        </div>
+        <div class="case">
+          <span class="tag">Entrada 8</span>
+          <h4>Tiro batia no "fundo" do buraco</h4>
+          <p><span class="lbl">Problema</span>O tiro desce inclinado: sai ~0.87 abaixo de onde entrou, fora do raio do buraco.</p>
+          <p class="fix"><span class="lbl">Solução</span>Buraco centrado onde a trajetória cruza o meio da parede.</p>
+          <p><span class="lbl">Impacto</span>2º tiro no mesmo lugar atravessa.</p>
+        </div>
+        <div class="case">
+          <span class="tag">Entrada 19</span>
+          <h4>"Nada mudou" no navegador</h4>
+          <p><span class="lbl">Problema</span>Cache do navegador + um servidor antigo em IPv6 respondendo na porta 8000.</p>
+          <p class="fix"><span class="lbl">Solução</span><code>serve.py</code>: sem cache (<code>no-store</code>), IPv4 + IPv6.</p>
+          <p><span class="lbl">Impacto</span>Toda mudança aparece ao recarregar.</p>
+        </div>
+        <div class="case">
+          <span class="tag">Entrada 23</span>
+          <h4>22 fps em combate</h4>
+          <p><span class="lbl">Problema</span>Medido desligando partes: o contorno da explosão recalculava o efeito 4× por pixel.</p>
+          <p class="fix"><span class="lbl">Solução</span>Contorno pela derivada de tela (<code>fwidth</code>).</p>
+          <p><span class="lbl">Impacto</span>Missão 3: <b>22 → 54 fps</b>.</p>
+        </div>
+        <div class="case">
+          <span class="tag">Entrada 25</span>
+          <h4>Cores da explosão</h4>
+          <p><span class="lbl">Problema</span>Laranja/vermelho quase não apareciam; fBm de 3 oitavas derrubou para ~35 fps.</p>
+          <p class="fix"><span class="lbl">Solução</span>Fumaça segue <code>phaseColor</code>; fBm com 2 oitavas.</p>
+          <p><span class="lbl">Impacto</span>5 fases visíveis, mesmo fps de antes.</p>
+        </div>
+      </div>
+      <div class="tiny">Também registrado: o erro de alinhamento do buffer na resposta do Gemini (192 bytes para uma struct de 208), achado ao executar o código (entrada 17).</div>
+    </div>
+  </section>
+
+  <!-- 5. Critério 3 -->
+  <section class="slide">
+    <div class="kicker">Critério 3</div>
+    <h2>Comparação entre IAs <span class="pts">2,0 pts</span></h2>
+    <p class="sub">Claude vs Gemini vs ChatGPT: mesmo prompt (converter o shader para WGSL), código compilado e testado</p>
+    <div class="body cols-32">
+      <div class="card" style="padding:.3em .6em">
+        <table>
+          <tr><th>Aspecto</th><th>Claude</th><th>Gemini</th><th>ChatGPT</th></tr>
+          <tr><td>Compila o WGSL</td><td class="ok">✅ Sim</td><td class="ok">✅ Sim</td><td class="ok">✅ Sim</td></tr>
+          <tr><td>Funciona como descrito</td><td class="ok">✅ Sim</td><td class="bad">❌ Não<div class="tiny">buffer de 192 B, struct exige 208</div></td><td class="ok">✅ Sim<div class="tiny">com aspect = 1</div></td></tr>
+          <tr><td>Pixels diferentes do GLSL</td><td class="ok">≤ 0,03%</td><td class="bad">12–31%</td><td class="ok">≤ 0,03%</td></tr>
+          <tr><td>Explicação</td><td class="ok">Boa</td><td class="bad">Fraca<div class="tiny">2 afirmações falsas</div></td><td class="ok">Ótima</td></tr>
+          <tr><td>Testou o próprio resultado</td><td class="ok">✅ Sim (único)</td><td class="bad">❌ Não</td><td class="bad">❌ Não</td></tr>
+        </table>
+      </div>
+      <div style="display:grid; gap:.8em; align-content:start">
+        <div class="card">
+          <h3>Conclusão</h3>
+          <ul>
+            <li><b>Claude:</b> recomendado, porque compila, roda e compara antes de entregar</li>
+            <li><b>ChatGPT:</b> alternativa válida e a explicação mais didática</li>
+            <li><b>Gemini:</b> precisa de revisão cuidadosa</li>
+          </ul>
+        </div>
+        <div class="card tiny">
+          Limitações: uma tarefa, uma resposta de cada IA; o Claude tinha acesso ao projeto e a ferramentas de teste.
+          A análise foi escrita pelo Claude, por isso tudo foi verificado executando o código.
+        </div>
+        <div><a class="btn primary" href="../docs/analise-ias.md" target="_blank" rel="noopener">Ver docs/analise-ias.md ↗</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Critério 4 -->
+  <section class="slide">
+    <div class="kicker">Critério 4</div>
+    <h2>Origem do shader e adaptações <span class="pts">1,0 pt</span></h2>
+    <p class="sub">Shader externo: "Cartoon explosion", Shadertoy X3dGz2 → WGSL</p>
+    <div class="body cols-2">
+      <div style="display:grid; gap:.8em; align-content:start">
+        <div class="card small">
+          <b>Origem:</b> <a href="https://www.shadertoy.com/view/X3dGz2" target="_blank" rel="noopener">shadertoy.com/view/X3dGz2</a>,
+          versão Godot (por RayL019) em <a href="https://godotshaders.com/shader/cartoon-explosion-effect/" target="_blank" rel="noopener">godotshaders.com</a><br>
+          <b>Licença:</b> CC BY-NC-SA 3.0 (adaptação sob a mesma licença)<br>
+          <b>Onde:</b> <code>src/explosion.js</code>, com fonte e adaptações no cabeçalho
+        </div>
+        <img class="shot" src="../assets/slides/explosao-fases.png" alt="Quadros da explosão: branco, laranja, vermelho escuro, fumaça">
+        <div class="tiny">Quadros a cada ~0,4 s: branco/amarelo → laranja → vermelho escuro → fumaça.</div>
+        <div class="card small"><b>Validação:</b> o port foi comparado pixel a pixel com o GLSL original rodando em WebGL2: <b>≤ 0,03%</b> de diferença (antes das mudanças visuais 6–9).</div>
+      </div>
+      <div class="card small">
+        <h3>Adaptações realizadas</h3>
+        <ol style="margin:.2em 0; padding-left:1.3em">
+          <li>GLSL/Godot → WGSL; quad billboard 3D gerado no vertex shader</li>
+          <li><code>mod</code> reimplementado (o <code>%</code> do WGSL trunca)</li>
+          <li>Uniforms com valor padrão → <code>const</code> (WGSL não tem default)</li>
+          <li><code>clamp</code> no índice da paleta; <code>repeat ≥ 0.001</code></li>
+          <li><code>discard</code> no lugar de blending</li>
+          <li>Contorno por <code>fwidth</code>: ~5× menos trabalho (22 → 54 fps)</li>
+          <li>Duração 1,3 s → 2,5 s</li>
+          <li>Cores em 5 fases: branco → amarelo → laranja → vermelho → preto</li>
+          <li>Turbulência fBm Perlin 3D, 2 oitavas (realismo × desempenho)</li>
+          <li>Uniform buffer de 112 bytes, alinhado (<code>vec3f</code> + <code>f32</code>)</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Critério 5 -->
+  <section class="slide">
+    <div class="kicker">Critério 5</div>
+    <h2>Funcionamento estável <span class="pts">1,5 pts</span></h2>
+    <p class="sub">App pronto para a apresentação</p>
+    <div class="body" style="grid-template-columns:1fr 1fr 1.05fr">
+      <div class="card small">
+        <h3>✅ Jogo</h3>
+        <ul>
+          <li>Menu FORTRESS ASSAULT, tutorial, créditos, pausa</li>
+          <li><b>Missão 1:</b> sem defesa, munição ∞</li>
+          <li><b>Missão 2:</b> torres atiram de volta, 75 tiros</li>
+          <li><b>Missão 3:</b> 3 tanques inimigos, 100 tiros, 180 s</li>
+          <li>Setas ↑↓: cano · mouse: câmera 360° · W/S/A/D com inércia</li>
+          <li>HUD: integridade, munição, tempo, avisos, minimapa</li>
+        </ul>
+      </div>
+      <div class="card small">
+        <h3>✅ Efeitos e som</h3>
+        <ul>
+          <li>60 partículas por explosão (cubos, esferas, octaedros), gravidade −9,8, rotação, somem em 3–5 s</li>
+          <li>Luz pontual por explosão: RGB (1.0, 0.7, 0.2), 2,0 → 0 em 2,5 s, raio 20</li>
+          <li>Som: explosão (ruído marrom + boom descendente), tiro D5, impacto A2, alerta C6 aos 30 s, música (C – G – Am – Em)</li>
+        </ul>
+      </div>
+      <div style="display:grid; gap:.7em; align-content:start">
+        <img class="shot" src="../assets/slides/missao3.jpg" alt="Missão 3 em combate: impacto no tanque, partículas e HUD">
+        <div class="card small">
+          ✅ <b>41–54 fps</b> na missão 3 em combate (medido)<br>
+          ✅ Sem erros no console nos testes automatizados
+        </div>
+        <a class="btn primary" href="../index.html" target="_blank" rel="noopener">▶ Rodar o jogo agora</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. Critério 6 -->
+  <section class="slide">
+    <div class="kicker">Critério 6</div>
+    <h2>Clareza da apresentação <span class="pts">0,5 pt</span></h2>
+    <p class="sub">Documentação e comunicação</p>
+    <div class="body cols-2">
+      <div class="card">
+        <h3>Documentos no repositório</h3>
+        <ul>
+          <li><a href="../README.md" target="_blank" rel="noopener">README.md</a>: como rodar, controles, estrutura e créditos</li>
+          <li><a href="../CLAUDE.md" target="_blank" rel="noopener">CLAUDE.md</a>: regras do projeto para a IA</li>
+          <li><a href="../docs/ai-log.md" target="_blank" rel="noopener">docs/ai-log.md</a>: <span class="log-count-inline">26</span> entradas cronológicas</li>
+          <li><a href="../docs/analise-ias.md" target="_blank" rel="noopener">docs/analise-ias.md</a>: comparação testada entre as IAs</li>
+          <li><code>docs/Resposta 1 Gemini.txt</code> / <code>ChatGPT.txt</code>: respostas originais</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>No código e no git</h3>
+        <ul>
+          <li>Código comentado; fonte e licença no cabeçalho do shader externo e do modelo 3D</li>
+          <li>Commits com mensagens explicando problema e correção</li>
+          <li>Tags de versão estável para voltar em caso de problema</li>
+          <li>Estes slides, um por critério de avaliação</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Resumo -->
+  <section class="slide">
+    <div class="kicker">Resumo</div>
+    <h2>Critérios de avaliação</h2>
+    <p class="sub">Onde está a evidência de cada critério</p>
+    <div class="body">
+      <div class="card" style="padding:.3em .8em; align-self:start">
+        <table class="score">
+          <tr><th>Critério</th><th>Pts</th><th>Evidência</th><th>Status</th></tr>
+          <tr><td>1. Registro de uso de IAs</td><td>2,5</td><td><code>docs/ai-log.md</code></td><td class="ok">✅ Entregue</td></tr>
+          <tr><td>2. Erros e correções</td><td>2,5</td><td>ai-log (seções "Problemas") + commits</td><td class="ok">✅ Entregue</td></tr>
+          <tr><td>3. Comparação entre IAs</td><td>2,0</td><td><code>docs/analise-ias.md</code></td><td class="ok">✅ Entregue</td></tr>
+          <tr><td>4. Origem do shader e adaptações</td><td>1,0</td><td>cabeçalho de <code>src/explosion.js</code> + README</td><td class="ok">✅ Entregue</td></tr>
+          <tr><td>5. App funcional e estável</td><td>1,5</td><td>demonstração ao vivo</td><td class="ok">✅ Entregue</td></tr>
+          <tr><td>6. Clareza da apresentação</td><td>0,5</td><td>estes slides + documentação</td><td class="ok">✅ Entregue</td></tr>
+          <tr class="total"><td>Total</td><td>10,0</td><td>6 de 6 critérios cobertos</td><td class="ok">✅</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. Créditos -->
+  <section class="slide">
+    <div class="kicker">Créditos</div>
+    <h2>Obrigado!</h2>
+    <p class="sub">Fortress Assault — Computação Gráfica, FECAP — 05/10/2026</p>
+    <div class="body cols-2" style="align-items:start">
+      <div class="card">
+        <h3>Equipe</h3>
+        <ul>
+          <!-- EDITAR: nomes do grupo e do professor -->
+          <li><b>Grupo:</b> Giulia e grupo</li>
+          <li><b>Professor(a):</b> [nome]</li>
+          <li><b>IAs:</b> Claude (principal), Gemini e ChatGPT (comparação)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Fontes externas</h3>
+        <ul class="small">
+          <li>Shader "Cartoon explosion", Shadertoy X3dGz2 (versão Godot por RayL019), CC BY-NC-SA 3.0</li>
+          <li>Modelo 3D "Tank", Willy Decarpentrie (Sketchfab), CC BY 4.0</li>
+          <li>Tone.js v14.8.49, licença MIT</li>
+          <li>WebGPU: API do navegador (Chrome)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<nav>
+  <button class="btn" id="b-first" title="Início (Home)">⏮<span class="btn-label"> Início</span></button>
+  <button class="btn" id="b-prev" title="Anterior (←)">←<span class="btn-label"> Anterior</span></button>
+  <button class="btn" id="b-next" title="Próximo (→)"><span class="btn-label">Próximo </span>→</button>
+  <a class="btn primary" href="../index.html" target="_blank" rel="noopener">▶ Ver ao vivo</a>
+  <span class="count" id="count"></span>
+</nav>
+
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  let cur = 0;
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => {
+      s.classList.toggle("active", k === cur);
+      s.classList.toggle("before", k < cur);
+    });
+    document.getElementById("count").textContent = `${cur + 1} / ${slides.length}`;
+    document.getElementById("progress").style.width = `${((cur + 1) / slides.length) * 100}%`;
+    history.replaceState(null, "", `#${cur + 1}`);
+  }
+
+  document.getElementById("b-first").onclick = () => show(0);
+  document.getElementById("b-prev").onclick = () => show(cur - 1);
+  document.getElementById("b-next").onclick = () => show(cur + 1);
+
+  addEventListener("keydown", (e) => {
+    if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+
+  // clique no slide: avança (no quarto esquerdo, volta); links e botões funcionam normalmente
+  document.getElementById("deck").addEventListener("click", (e) => {
+    if (e.target.closest("a, button")) return;
+    const s = slides[cur].getBoundingClientRect();
+    show(e.clientX < s.left + s.width * 0.25 ? cur - 1 : cur + 1);
+  });
+
+  // número de entradas do ai-log, lido do próprio arquivo (se aberto pelo servidor)
+  fetch("../docs/ai-log.md", { cache: "no-store" })
+    .then(r => (r.ok ? r.text() : Promise.reject()))
+    .then(t => {
+      const n = (t.match(/^## \d+\./gm) || []).length;
+      if (n) document.querySelectorAll("#log-count, .log-count-inline").forEach(el => (el.textContent = n));
+    })
+    .catch(() => { /* aberto como arquivo: fica o número fixo */ });
+
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>

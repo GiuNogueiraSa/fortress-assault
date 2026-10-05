@@ -1166,3 +1166,104 @@ A versão anterior, estável, foi marcada com a tag `v-estavel-missoes`.
 - **Medições de fps variando muito entre execuções** (53 → 43 na mesma
   versão). A comparação justa foi feita alternando as versões antiga e
   nova, com `git stash`.
+
+## 26. Slides HTML interativos com os 6 critérios de avaliação — 05/10/2026 11:50
+
+**Prompt:** criar `src/presentation.html` com 10 slides:
+1. capa;
+2. objetivo;
+3. registro de IAs (2,5);
+4. erros e correções (2,5);
+5. comparação entre IAs (2,0);
+6. origem do shader (1,0);
+7. app estável (1,5);
+8. clareza (0,5);
+9. resumo dos pontos;
+10. créditos.
+
+Tema escuro azul/amarelo/laranja, navegação por setas e clique, botões
+"Ver ao vivo" e "Ver ai-log.md", e impressão em PDF.
+
+**Feito:**
+- **`src/presentation.html`:** um arquivo só, sem bibliotecas (fonte Inter
+  do Google Fonts, com fonte do sistema se estiver sem internet).
+  - **Palco 16:9** com transição suave (fade + deslize).
+  - **Navegação:**
+    - setas, PageUp/PageDown, Home/End;
+    - clique no slide (no quarto esquerdo, volta);
+    - botões Início / Anterior / Próximo / Ver ao vivo;
+    - contador e barra de progresso;
+    - `#n` na URL para abrir direto num slide.
+  - **Impressão:** `@media print` com um slide por página (testado:
+    PDF de 10 páginas).
+  - **Celular:** em tela estreita, cada slide vira uma coluna com
+    rolagem.
+  - **Contador de entradas:** lê o próprio `docs/ai-log.md`, então fica
+    certo conforme o log cresce.
+- **`assets/slides/`:** capturas reais do jogo (castelo ao pôr do sol para
+  a capa, missão 1 com explosão, missão 3 em combate, quadros das fases da
+  explosão).
+- **`serve.py`:** `.md` servido como `text/plain`. Antes saía como
+  `application/octet-stream`, e os botões "Ver ai-log.md" baixavam o
+  arquivo em vez de abrir.
+- **README:** seção "Apresentação" com o endereço dos slides.
+
+**Conteúdo conferido com a documentação (corrigido onde o pedido não
+batia):**
+- **Slide 3 (entradas de exemplo):**
+  - A entrada 1 não foi "Setup WebGPU": foi organizar o protótipo em
+    módulos, git e README.
+  - A entrada 6 é linha de mira + trincheira, não refatoração; acabou
+    tirada da tabela, por espaço.
+  - Usadas as entradas reais 1, 3, 17, 23, 24 e 25.
+- **Slide 4 (erros):** três dos cinco exemplos do pedido não estão no
+  log e foram trocados por casos documentados:
+  - "`target` → `camLookAt`": `camLookAt` já existia no protótipo
+    original (commit `696a5ca`), não foi correção de bug.
+  - "buffer de 96 vs 112 bytes": o buffer do Claude sempre foi de 112. O
+    erro de alinhamento real foi o da resposta do Gemini (192 vs 208,
+    entrada 17), citado no rodapé do slide.
+  - "inércia na entrada 19": a inércia foi um recurso pedido na
+    entrada 23, não correção; a entrada 19 foi o cache do navegador.
+  - Os 5 casos do slide:
+    1. paleta fora do array e divisão por zero (3);
+    2. tiro no "fundo" do buraco (8);
+    3. cache e servidor duplicado (19);
+    4. 22 → 54 fps (entrada 23, não 24);
+    5. cores da explosão (25).
+- **Slide 6:**
+  - O autor "gafurov" não aparece em nenhuma fonte do projeto. A página
+    do godotshaders credita a versão Godot a "RayL019" e não diz o nome
+    do autor do Shadertoy, por isso o slide usa só o que dá para
+    verificar.
+  - A validação ≤ 0,03% vale para o port original, antes das mudanças
+    visuais, e o slide diz isso.
+- **Slide 8:** `DEVELOPMENT_REPORT.md` não existe no repositório e ficou
+  de fora.
+- **Slide 9:** em vez de "10/10", que seria a nota (cabe ao professor), a
+  tabela mostra peso, onde está a evidência e "6 de 6 critérios
+  cobertos".
+- **Nomes do grupo e do professor:** marcados com `<!-- EDITAR -->` no
+  HTML. O prompt só trazia "Giulia + grupo".
+
+**Arquivos:** `src/presentation.html` (novo), `assets/slides/*` (novo),
+`serve.py`, `README.md`, `docs/ai-log.md`.
+
+**Testes (Playwright, Chrome):**
+- **Desktop (1366×768):** os 10 slides navegados pelo teclado,
+  verificando automaticamente que nada passa da borda e que nenhuma imagem
+  quebra. Capturas conferidas.
+- **Celular (390 px):** sem rolagem horizontal.
+- **Links:** `ai-log.md`, `analise-ias.md`, `README.md`, `CLAUDE.md` e o
+  jogo respondem 200 e abrem no navegador.
+- **PDF:** 10 páginas.
+- Sem erros de JavaScript (só o 404 do favicon).
+
+**Problemas:**
+- **Primeira versão:** no slide 3 a tabela passava por cima do botão, e
+  o slide 2 vazava 9 px → tabela mais compacta (uma linha a menos) e
+  textos menores.
+- **No celular** o slide 16:9 cortava o conteúdo → layout de uma coluna
+  com rolagem.
+- **Download dos `.md`** em vez de abrir → tipo corrigido no `serve.py`
+  (servidor reiniciado).
