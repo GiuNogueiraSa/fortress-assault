@@ -1497,3 +1497,28 @@ informação errada:**
 **Problemas:** o 1º script que escrevia esta entrada não rodou. Um `\U` no
 texto foi lido pelo Python como escape de caractere Unicode, e nada foi
 gravado nem commitado. Refeito sem a barra.
+
+## 31. Ideias para deixar o jogo mais legal — 05/10/2026 14:30
+
+**Prompt:** "tem algo que poderíamos melhorar nesse jogo para ele ser mais
+legal? tipo, dependendo da quantidade de disparos o buraco aumenta?"
+
+**Feito:** só análise e sugestões, sem mudança de código.
+- **Viabilidade da ideia do buraco crescente:** lido o `addHole` em
+  `src/trench.js`. Hoje cada acerto cria um buraco novo (raio 0,4–0,8, até
+  96 buracos).
+  - Crescer seria: se o impacto cair dentro de um buraco existente, aumentar
+    o raio dele em vez de criar outro.
+  - A colisão e o recorte no shader leem os mesmos dados, então o tanque já
+    passaria pelo buraco maior sem mudança extra.
+  - De quebra, economiza vagas do limite de 96.
+- **Outras ideias listadas,** por custo e risco:
+  - câmera lenta no tiro final;
+  - vento afetando a trajetória;
+  - munição pesada;
+  - crateras no chão;
+  - desabamento de torre ao zerar um setor.
+- **Recomendação:** só mudanças pequenas e isoladas hoje (dia da
+  apresentação), com a tag de versão estável para voltar.
+
+**Arquivos:** `docs/ai-log.md`.
