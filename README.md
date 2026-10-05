@@ -19,7 +19,9 @@ navegador.
 
 **Online:** <https://giunogueirasa.github.io/fortress-assault/> (GitHub Pages; precisa de Chrome ou Edge com WebGPU).
 
-**Local:**
+**Local:** passo a passo para outro computador (VS Code, problemas comuns e
+como pedir ao Claude Code) em **[docs/COMO_RODAR.md](docs/COMO_RODAR.md)**.
+Resumo:
 
 O código usa módulos ES, então é preciso um servidor HTTP local (abrir o
 `index.html` direto pelo arquivo não funciona). Na pasta do projeto:
@@ -42,6 +44,8 @@ desativado, ative em `chrome://flags/#enable-unsafe-webgpu`.
   (prompt, o que foi feito, arquivos, problemas e correções).
 - **[DEVELOPMENT_REPORT.md](docs/DEVELOPMENT_REPORT.md):** relatório técnico
   completo.
+- **[COMO_RODAR.md](docs/COMO_RODAR.md):** como rodar no VS Code em outro
+  computador (e com o Claude Code).
 - **[analise-ias.md](docs/analise-ias.md):** comparação validada entre
   Claude, Gemini e ChatGPT (código compilado e comparado pixel a pixel).
 

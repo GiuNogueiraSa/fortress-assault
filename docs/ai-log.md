@@ -1831,3 +1831,52 @@ verificação automática do endereço.
 `python serve.py` (http://localhost:8000).
 
 **Arquivos:** `docs/ai-log.md`.
+
+## 40. Guia para rodar no VS Code + revisão dos slides — 05/10/2026 18:19
+
+**Prompts:**
+1. "crie um documento e suba para o GitHub explicando como rodar o projeto
+   no VS Code e com instruções para o Claude Code iniciá-lo, para eu fazer
+   assim no computador do professor";
+2. no meio do trabalho: "veja se, com todas as nossas mudanças, não é
+   necessário alterar o HTML da apresentação".
+
+**Feito:**
+- **`docs/COMO_RODAR.md` (novo):**
+  - pré-requisitos (Chrome/Edge com WebGPU, Python 3, VS Code, Git
+    opcional);
+  - passo a passo: clonar ou baixar o ZIP → abrir a pasta → `python
+    serve.py` no terminal → abrir no Chrome;
+  - tabela de problemas comuns, tirados do que já aconteceu no projeto:
+    `python` não reconhecido / `py`, porta ocupada, WebGPU indisponível,
+    tela preta no navegador do VS Code (entrada 15), `file://`, som só
+    depois de um gesto, cache;
+  - plano B sem Python (Live Server);
+  - pedido pronto para colar no Claude Code, pedindo para não alterar
+    arquivos nem commitar;
+  - checklist antes de apresentar e o link do GitHub Pages.
+- **`serve.py`:** aceita outra porta (`python serve.py 8080`), para o caso
+  de a 8000 estar ocupada no outro computador.
+- **`CLAUDE.md`:** nova seção "Como rodar o projeto", para o Claude Code
+  saber iniciar o servidor sozinho ao abrir a pasta.
+- **README:** links para o guia.
+- **Revisão dos slides** contra as mudanças do dia:
+  - slide 2: entraram torres que desmoronam, buracos que crescem, crateras,
+    mira no mouse e ranking;
+  - slide 3: a tabela ganhou as entradas 32 e 36, no lugar da 25, que já
+    aparece nos slides 4 e 6;
+  - slide 7: desempenho "35–54 fps (varia com a máquina)", como no README,
+    e "as 3 missões vencidas até o fim nos testes";
+  - slide 8: link para o guia.
+  - Conferidos e sem mudança: origem do shader, comparação das IAs, resumo
+    dos critérios e créditos. O contador de entradas se atualiza sozinho.
+  - Pendente: os nomes do grupo.
+
+**Arquivos:** `docs/COMO_RODAR.md` (novo), `serve.py`, `CLAUDE.md`,
+`README.md`, `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:**
+- `python serve.py 8001` respondeu 200 com `Cache-Control: no-store`, sem
+  derrubar o servidor da 8000. Depois foi parado.
+- Slides: sem estouro de layout no desktop e no celular; capturas dos
+  slides 2, 3, 7 e 8 conferidas.

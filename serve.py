@@ -1,12 +1,14 @@
 # Servidor local do jogo: igual ao "python -m http.server", mas manda o navegador
 # NÃO guardar cache. Sem isso, o navegador reaproveita versões antigas dos
 # módulos .js e as mudanças no código não aparecem ao recarregar a página.
-# Uso: python serve.py   (depois abrir http://localhost:8000)
+# Uso: python serve.py        (depois abrir http://localhost:8000)
+#      python serve.py 8080   (outra porta, se a 8000 estiver ocupada)
 import http.server
 import socket
 import socketserver
+import sys
 
-PORT = 8000
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):

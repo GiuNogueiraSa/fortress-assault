@@ -38,3 +38,16 @@ pasta docs/ se não existir) uma entrada com:
 Esse arquivo serve para documentação do processo de uso de IA exigida
 no trabalho, então mantenha as entradas objetivas e cronológicas
 (mais recente no final do arquivo).
+
+## Como rodar o projeto
+
+- Servidor local (sem cache), na raiz do projeto: `python serve.py`
+  (no Windows também `py serve.py`). Porta padrão 8000; outra porta:
+  `python serve.py 8080`. Rodar em segundo plano e deixar aberto.
+- Jogo: http://localhost:8000 — slides: http://localhost:8000/src/presentation.html
+- Abrir no Chrome ou Edge (WebGPU). O navegador embutido do VS Code mostra
+  tela preta com este jogo.
+- Não há build nem dependências para instalar (Tone.js está em
+  assets/vendor/). Guia completo para outro computador: docs/COMO_RODAR.md.
+- Se o pedido for só para rodar/apresentar, não alterar arquivos nem fazer
+  commits.

@@ -203,6 +203,8 @@
             <li>3 missões progressivas, com menu, HUD e minimapa</li>
             <li>Castelo destrutível em qualquer ponto (buracos recortados no shader)</li>
             <li>Explosões 3D: fogo (shader externo), 60 partículas, luz dinâmica</li>
+            <li>Torres que desmoronam, buracos que crescem, crateras no chão</li>
+            <li>Mira no mouse com torre independente; ranking e recordes</li>
             <li>Som: explosão, tiro, impacto, alerta e música</li>
           </ul>
         </div>
@@ -229,7 +231,8 @@
           <tr><td class="n">17</td><td>04/10</td><td>Comparar Claude × Gemini × ChatGPT na conversão do shader</td><td>Três códigos compilados e testados</td><td><code>analise-ias.md</code></td></tr>
           <tr><td class="n">23</td><td>04/10</td><td>Menu e 3 missões com progressão</td><td>Missões, HUD, inimigos; 22 → 54 fps</td><td><code>missions.js</code></td></tr>
           <tr><td class="n">24</td><td>05/10</td><td>Explosão 3D com partículas, luz dinâmica e som</td><td>ParticleEmitter, luzes no shader, Tone.js</td><td><code>explosion-*.js</code></td></tr>
-          <tr><td class="n">25</td><td>05/10</td><td>Cores realistas e turbulência no shader</td><td>5 fases de cor, fBm Perlin 3D</td><td><code>explosion.js</code></td></tr>
+          <tr><td class="n">32</td><td>05/10</td><td>Buraco que cresce, crateras, torre que desmorona</td><td>Corte no shader + colisão; mesmo fps</td><td><code>trench.js</code></td></tr>
+          <tr><td class="n">36</td><td>05/10</td><td>Mira no mouse com torre independente</td><td>Torre separada do modelo glTF; tiro segue a torre</td><td><code>tank.js</code></td></tr>
         </table>
       </div>
       <div style="display:flex; gap:.7em; align-items:center">
@@ -385,8 +388,8 @@
       <div style="display:grid; gap:.7em; align-content:start">
         <img class="shot" src="../assets/slides/missao3.jpg" alt="Missão 3 em combate: impacto no tanque, partículas e HUD">
         <div class="card small">
-          ✅ <b>41–54 fps</b> na missão 3 em combate (medido)<br>
-          ✅ Sem erros no console nos testes automatizados
+          ✅ <b>35–54 fps</b> na missão 3 em combate (medido; varia com a máquina)<br>
+          ✅ As 3 missões vencidas até o fim nos testes automatizados, sem erros no console
         </div>
         <a class="btn primary" href="../index.html" target="_blank" rel="noopener">▶ Rodar o jogo agora</a>
       </div>
@@ -407,6 +410,7 @@
           <li><a href="../docs/ai-log.md" target="_blank" rel="noopener">docs/ai-log.md</a>: <span class="log-count-inline">26</span> entradas cronológicas</li>
           <li><a href="../docs/analise-ias.md" target="_blank" rel="noopener">docs/analise-ias.md</a>: comparação testada entre as IAs</li>
           <li><a href="../docs/DEVELOPMENT_REPORT.md" target="_blank" rel="noopener">docs/DEVELOPMENT_REPORT.md</a>: relatório técnico (arquitetura, shaders, desempenho, testes)</li>
+          <li><a href="../docs/COMO_RODAR.md" target="_blank" rel="noopener">docs/COMO_RODAR.md</a>: como rodar no VS Code em outro computador</li>
           <li><code>docs/Resposta 1 Gemini.txt</code> / <code>ChatGPT.txt</code>: respostas originais</li>
         </ul>
       </div>
