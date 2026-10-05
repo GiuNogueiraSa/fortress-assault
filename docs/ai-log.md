@@ -2038,3 +2038,26 @@ seta fecha o zoom e avança.
 marcador e ✅ ao mesmo tempo no slide 8 → ✅ removido do título; (3)
 "Yasmin" quebrava sozinha no cartão da equipe → chips menores dentro de
 cartões.
+
+## 47. Slides sem pontuação nem critérios de avaliação — 05/10/2026 20:25
+
+**Prompt:** (com prints do selo "0,5 pt" e do slide "Critérios de
+avaliação") tirar todas as menções a pontos e aos requisitos do trabalho,
+em especial o slide do print, e os selos de pontos no topo de todos os
+slides.
+
+**Feito:**
+- Removidos os selos de pontos dos 6 títulos (e o CSS `.pts`).
+- Slide "Resumo — Critérios de avaliação" apagado (e o CSS `.score`); a
+  apresentação passa de 11 para 10 slides.
+- Rótulos "Critério 1…6" trocados pelo assunto: Uso de IA,
+  Desenvolvimento, Comparação, Shader externo, Resultado, Repositório.
+- Títulos que soavam como requisito: "Evidências de erros e correções" →
+  "Erros e correções"; "Clareza da apresentação" → "Documentação e
+  código" (subtítulo "Onde encontrar cada parte do projeto").
+- Removido o item "Estes slides, um por critério de avaliação".
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:** busca por "pts", "critério", "avaliação" sem resultados nos
+slides; slides 4, 5, 9 e 10 conferidos por captura; 10 slides no contador.
