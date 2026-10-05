@@ -2100,3 +2100,35 @@ foi pedido para enviar por lá.
 **Problema:** em 1280×720 a nota no rodapé do slide de erros ficava
 cortada → cartões mais compactos; a mudança da letra proporcional resolveu
 o resto.
+
+## 49. Slide de problemas de shader — 05/10/2026 21:00
+
+**Prompt:** "na parte de problema adicione problema de shader se tivemos
+algum".
+
+**Feito:**
+- Levantamento no ai-log dos problemas de shader reais. O slide de erros
+  já tinha 3 (entradas 3, 23 e 25), que ganharam a etiqueta "SHADER".
+- **Slide novo "Problemas de shader (WGSL)"** (6º slide; agora são 11),
+  no mesmo formato Problema → Causa → Solução → Resultado:
+  1. Explosão cortada pela parede (entradas 12 e 21): billboard escondido
+     pelo teste de profundidade → centro do quad puxado 0,8 para a câmera
+     no vertex shader.
+  2. Pátio todo escuro (21): distância ao castelo negativa dentro do pátio
+     escurecia o chão inteiro no fragment shader → `abs()`.
+  3. Fachada pesada (20): ~11 gradient noise 3D por pixel → value noise 2D
+     e ruído caro só na borda dos buracos; 60 fps.
+  4. Jogo não carregava (32): WGSL montado em JS usava constantes declaradas
+     depois → declaração movida.
+  5. Uniform buffer desalinhado (17): `vec3f` alinha em 16 bytes (192 × 208
+     na resposta do Gemini) → buffer de 112 bytes com `vec3f` + `f32`.
+- Nota com os arquivos que têm shaders, conferida por busca de
+  `@fragment`: `lighting.js`, `sky.js`, `aimLine.js` e `explosion.js`.
+
+**Arquivos:** `src/presentation.html`, `docs/ai-log.md`.
+
+**Testes:** capturas em 1600×900 e 1366×768.
+
+**Problema:** a 1ª versão da nota citava `trench.js` como arquivo de
+shader; a busca mostrou que o shader do castelo fica em `lighting.js`
+→ corrigido.

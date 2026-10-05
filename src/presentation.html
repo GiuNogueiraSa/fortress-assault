@@ -146,6 +146,7 @@
   .case-head { display: flex; align-items: center; gap: .5em; }
   .case .num { width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #14152a; background: var(--c); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 60%, transparent); flex: none; }
   .case .tag { color: var(--muted); font-weight: 700; font-size: .85em; letter-spacing: .04em; }
+  .case .gpu { margin-left: auto; font-size: .68em; font-weight: 800; letter-spacing: .1em; color: var(--c); border: 1px solid var(--c); border-radius: 5px; padding: .1em .4em; }
   .case h4 { margin: 0; font-size: 1.22em; line-height: 1.2; }
   .case p { margin: 0; line-height: 1.35; padding-left: .7em; border-left: 2px solid var(--line); }
   .case .lbl { font-weight: 800; text-transform: uppercase; font-size: .76em; letter-spacing: .08em; display: block; margin-bottom: .1em; }
@@ -344,7 +345,7 @@
     <div class="body" style="grid-template-rows:1fr auto">
       <div class="cases">
         <div class="case c-shader">
-          <div class="case-head"><span class="num">1</span><span class="tag">Entrada 3 · 28/09</span></div>
+          <div class="case-head"><span class="num">1</span><span class="tag">Entrada 3 · 28/09</span><span class="gpu">SHADER</span></div>
           <h4>Shader externo com bugs</h4>
           <p class="prob"><span class="lbl">Problema</span>Ao portar a explosão do Shadertoy, o código original lia uma 5ª cor numa paleta de 4 e dividia por zero no 1º quadro.</p>
           <p class="cause"><span class="lbl">Causa</span>Ruído entre 0,75 e 1 gerava índice 4; em <code>t = 0</code>, <code>repeat</code> era 0.</p>
@@ -368,7 +369,7 @@
           <div class="result">Travessia até o pátio</div>
         </div>
         <div class="case c-fps">
-          <div class="case-head"><span class="num">4</span><span class="tag">Entrada 23 · 04/10</span></div>
+          <div class="case-head"><span class="num">4</span><span class="tag">Entrada 23 · 04/10</span><span class="gpu">SHADER</span></div>
           <h4>Jogo travando em combate</h4>
           <p class="prob"><span class="lbl">Problema</span>A missão 3 caía para 22 fps quando havia explosões perto da câmera.</p>
           <p class="cause"><span class="lbl">Causa</span>Medido desligando partes: o contorno preto recalculava a explosão 4× por pixel.</p>
@@ -376,7 +377,7 @@
           <div class="result">22 → 54 fps</div>
         </div>
         <div class="case c-color">
-          <div class="case-head"><span class="num">5</span><span class="tag">Entrada 25 · 05/10</span></div>
+          <div class="case-head"><span class="num">5</span><span class="tag">Entrada 25 · 05/10</span><span class="gpu">SHADER</span></div>
           <h4>Cores da explosão sumindo</h4>
           <p class="prob"><span class="lbl">Problema</span>As fases laranja e vermelha quase não apareciam, e mais turbulência derrubou para ~35 fps.</p>
           <p class="cause"><span class="lbl">Causa</span>A bola de fogo some na metade da vida e a fumaça, marrom fixa, dominava.</p>
@@ -385,6 +386,58 @@
         </div>
       </div>
       <div class="tiny">Cada caso tem a entrada completa no <code>docs/ai-log.md</code> e um commit explicando o problema e a correção.</div>
+    </div>
+  </section>
+
+  <!-- 4b. Problemas de shader -->
+  <section class="slide" style="--bg-img:url('../assets/slides/jogo-m3-derrota.jpg')">
+    <div class="kicker">Desenvolvimento · GPU</div>
+    <h2>Problemas de shader (WGSL)</h2>
+    <p class="sub">Erros que apareceram nos shaders de vértice e de fragmento, e como foram corrigidos</p>
+    <div class="body" style="grid-template-rows:1fr auto">
+      <div class="cases">
+        <div class="case c-hole">
+          <div class="case-head"><span class="num">1</span><span class="tag">Entradas 12 e 21</span></div>
+          <h4>Explosão cortada pela parede</h4>
+          <p class="prob"><span class="lbl">Problema</span>Só a metade de baixo da onda de choque aparecia; no portão, o arco escondia o topo da bola de fogo.</p>
+          <p class="cause"><span class="lbl">Causa</span>O quad billboard fica de frente para a câmera; vista do alto, a metade de cima "deita" dentro do muro e o teste de profundidade a esconde.</p>
+          <p class="fix"><span class="lbl">Solução</span>No vertex shader, o centro do quad é puxado 0,8 na direção da câmera.</p>
+          <div class="result">Explosão inteira visível</div>
+        </div>
+        <div class="case c-tank">
+          <div class="case-head"><span class="num">2</span><span class="tag">Entrada 21 · 04/10</span></div>
+          <h4>Pátio todo escuro</h4>
+          <p class="prob"><span class="lbl">Problema</span>Com as sombras ligadas, o chão dentro do castelo ficava quase preto.</p>
+          <p class="cause"><span class="lbl">Causa</span>O fragment shader do chão escurece perto da muralha pela distância até o castelo, que é <b>negativa</b> dentro do pátio: o chão inteiro contava como "colado na parede".</p>
+          <p class="fix"><span class="lbl">Solução</span><code>abs()</code> na distância e luz ambiente quente no pátio.</p>
+          <div class="result">Pátio claro e iluminado</div>
+        </div>
+        <div class="case c-fps">
+          <div class="case-head"><span class="num">3</span><span class="tag">Entrada 20 · 04/10</span></div>
+          <h4>Fachada pesada demais</h4>
+          <p class="prob"><span class="lbl">Problema</span>Com o castelo ocupando meia tela, o jogo caía para 25–39 fps.</p>
+          <p class="cause"><span class="lbl">Causa</span>O fragment shader da fortaleza calculava ~11 <i>gradient noise</i> 3D por pixel para pedra, hera e manchas.</p>
+          <p class="fix"><span class="lbl">Solução</span><i>Value noise</i> 2D barato (4 hashes) nos padrões; o ruído caro só na borda dos buracos.</p>
+          <div class="result">60 fps</div>
+        </div>
+        <div class="case c-shader">
+          <div class="case-head"><span class="num">4</span><span class="tag">Entrada 32 · 05/10</span></div>
+          <h4>Jogo não carregava</h4>
+          <p class="prob"><span class="lbl">Problema</span>Tela parada com o erro "Cannot access 'TOWERS_WGSL' before initialization".</p>
+          <p class="cause"><span class="lbl">Causa</span>O código WGSL dos buracos é montado em JS e passou a usar as constantes das torres, declaradas mais abaixo no arquivo.</p>
+          <p class="fix"><span class="lbl">Solução</span>Declaração das constantes movida para antes do shader que as usa.</p>
+          <div class="result">Shaders compilando de novo</div>
+        </div>
+        <div class="case c-color">
+          <div class="case-head"><span class="num">5</span><span class="tag">Entrada 17 · 04/10</span></div>
+          <h4>Uniform buffer desalinhado</h4>
+          <p class="prob"><span class="lbl">Problema</span>O código da explosão gerado pelo Gemini era rejeitado pelo WebGPU.</p>
+          <p class="cause"><span class="lbl">Causa</span>Em WGSL, <code>vec3f</code> alinha em 16 bytes: o buffer tinha 192 bytes para uma struct de 208.</p>
+          <p class="fix"><span class="lbl">Solução</span>No nosso port, buffer de 112 bytes com cada <code>vec3f</code> seguido de um <code>f32</code>.</p>
+          <div class="result">Buffer aceito pela GPU</div>
+        </div>
+      </div>
+      <div class="tiny">Shaders do projeto: iluminação, sombras, chão e castelo com buracos recortados (<code>lighting.js</code>), céu (<code>sky.js</code>), linha de mira (<code>aimLine.js</code>) e explosão (<code>explosion.js</code>, shader externo adaptado).</div>
     </div>
   </section>
 
